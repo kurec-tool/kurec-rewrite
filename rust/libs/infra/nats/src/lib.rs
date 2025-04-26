@@ -84,67 +84,16 @@ pub async fn connect(nats_url: &str) -> Result<NatsClient, NatsInfraError> {
 mod tests {
     use super::*;
     use anyhow::Result;
-    use testcontainers::{
-        ContainerAsync, GenericImage, ImageExt, core::WaitFor, runners::AsyncRunner,
+    use test_util::{
+        PROXY_NAME, disable_proxy, enable_proxy, init_test_logging, setup_toxi_proxy_nats,
     };
+    use tokio::time;
     use tracing::debug;
-
-    // テスト終了時に自動的にコンテナを停止・削除するための構造体
-    struct TestNatsContainer {
-        _container: ContainerAsync<GenericImage>,
-    }
-
-    // Docker が利用可能かチェック
-    async fn ensure_docker() {
-        for _ in 0..20 {
-            if std::process::Command::new("docker")
-                .arg("info")
-                .output()
-                .is_ok()
-            {
-                return;
-            }
-            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-        }
-        panic!("Docker daemon not ready");
-    }
-
-    // テスト用の NATS サーバーを起動し、接続 URL とコンテナハンドラを返す
-    async fn setup_nats() -> Result<(TestNatsContainer, String)> {
-        ensure_docker().await;
-        debug!("Starting NATS container for testing...");
-        let container = GenericImage::new("nats", "latest")
-            .with_exposed_port(4222u16.into())
-            .with_wait_for(WaitFor::message_on_stderr("Server is ready"))
-            .with_cmd(vec!["--js", "--debug"]) // JetStream を有効化
-            .start()
-            .await?;
-        let host = container.get_host().await?;
-        let port = container.get_host_port_ipv4(4222u16).await?;
-        let url = format!("nats://{}:{}", host, port); // スキームを nats:// に修正
-        debug!(url = %url, "NATS container started.");
-
-        // NATSサーバーが完全に起動するまで少し待機
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-
-        Ok((
-            TestNatsContainer {
-                _container: container,
-            },
-            url,
-        ))
-    }
-
-    // テスト用の NatsClient をセットアップするヘルパー関数
-    async fn setup_test_client() -> Result<(TestNatsContainer, NatsClient)> {
-        let (container_handler, url) = setup_nats().await?;
-        let client = connect(&url).await?;
-        Ok((container_handler, client))
-    }
 
     #[tokio::test]
     async fn test_connect_success() -> Result<()> {
-        let (_container_handler, client) = setup_test_client().await?;
+        let proxy = setup_toxi_proxy_nats().await?;
+        let client = connect(&proxy.nats_url).await?;
         // flush() を呼び出して接続を確立させる
         client.client().flush().await?;
         // 接続状態を確認
@@ -157,8 +106,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_jetstream_context() -> Result<()> {
-        let (_container_handler, nats_client) = setup_test_client().await?;
-        let js_ctx = nats_client.jetstream_context();
+        let proxy = setup_toxi_proxy_nats().await?;
+        let client = connect(&proxy.nats_url).await?;
+        let js_ctx = client.jetstream_context();
         // 簡単な操作を試す (例: アカウント情報取得 - query_account())
         let result = js_ctx.query_account().await;
         assert!(result.is_ok(), "JetStream 操作に失敗: {:?}", result.err());
@@ -192,5 +142,82 @@ mod tests {
                 panic!("予期しないエラーが発生しました: {:?}", e);
             }
         }
+    }
+
+    // 再接続テスト
+    #[tokio::test]
+    async fn test_nats_reconnection() -> Result<()> {
+        init_test_logging();
+
+        // NATS コンテナを起動
+        let mut toxi_proxy_nats_container = setup_toxi_proxy_nats().await?;
+
+        time::sleep(Duration::from_secs(5)).await;
+
+        // HTTP クライアントを作成
+        let http_client = reqwest::Client::new();
+
+        // Toxiproxy API の URL
+        let toxiproxy_url = &toxi_proxy_nats_container.api_url;
+
+        // プロキシ名
+        let proxy_name = PROXY_NAME;
+
+        // アップストリームアドレス (NATS コンテナ)
+        // Docker ネットワーク内ではコンテナ名で解決できる
+        let upstream_addr = "localhost:4222".to_string();
+        debug!("NATS upstream address: {}", upstream_addr);
+
+        // プロキシ経由の NATS URL
+        let nats_url = toxi_proxy_nats_container.nats_url.clone();
+
+        debug!(url = %nats_url, "Toxiproxy 経由で NATS に接続します");
+
+        // まず通常接続を確認
+        let client = connect(&nats_url).await?;
+        client.client().flush().await?;
+        assert_eq!(
+            client.client().connection_state(),
+            async_nats::connection::State::Connected
+        );
+
+        // プロキシを無効化
+        disable_proxy(&http_client, toxiproxy_url, proxy_name).await?;
+
+        // tokio::select を使って並列処理を実装
+        // 1. connect() を呼び出す
+        // 2. 1秒待ってからプロキシを元に戻す
+        let reconnection_result = tokio::select! {
+            connect_result = connect(&nats_url) => {
+                debug!("connect() が完了しました");
+                connect_result
+            }
+            _ = async {
+                // 1秒待機
+                time::sleep(Duration::from_secs(1)).await;
+                // プロキシを元に戻す
+                enable_proxy(&http_client, &toxiproxy_url, proxy_name).await?;
+                debug!("プロキシを再有効化しました");
+                Ok::<_, anyhow::Error>(())
+            } => {
+                // 再接続を待機
+                time::sleep(Duration::from_secs(3)).await;
+                debug!("再接続を待機しています...");
+                connect(&nats_url).await
+            }
+        };
+
+        // 再接続が成功したことを確認
+        let reconnected_client = reconnection_result?;
+        reconnected_client.client().flush().await?;
+        assert_eq!(
+            reconnected_client.client().connection_state(),
+            async_nats::connection::State::Connected
+        );
+
+        debug!("NATS 再接続テストが成功しました");
+        toxi_proxy_nats_container.cleanup().await?;
+
+        Ok(())
     }
 }
