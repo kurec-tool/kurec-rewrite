@@ -1,0 +1,72 @@
+services:
+  devcontainer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    privileged: true
+    group_add:
+      - docker
+    volumes:
+      - ../..:/workspaces:cached
+    command: sleep infinity
+    environment:
+      - MEILISEARCH_URL=http://meilisearch:7700
+      - NATS_URL=nats:4222
+      - MINIO_ALIAS=minio
+      - MINIO_ACCESS_KEY=minio
+      - MINIO_SECRET_KEY=minio123
+      - MINIO_USER=minio
+      - MINIO_URL=http://minio:9000
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=password
+      - RUST_LOG=debug,async_nats=warn
+      - NEXT_PUBLIC_MEILISEARCH_URL=http://localhost:7700
+
+  tuner:
+    build:
+      context: ../mirakc-docker
+    init: true
+    volumes:
+      - ./epg:/var/lib/mirakc/epg
+      - ./config/mirakc-config.yml:/etc/mirakc/config.yml:ro
+      - ./recorded:/recorded
+      - ./records:/records
+    environment:
+      - RUST_LOG=info,mirakc=debug
+      - MIRAKC_ARIB_LOG=info
+      - MIRAKC_ARIB_LOG_NO_TIMESTAMP=1
+      - MIRAKC_DEBUG_CHILD_PROCESS=1
+    ports:
+      - "40772:40772"
+
+  nats:
+    image: nats:latest
+    ports:
+      - "8222:8222"
+    volumes:
+      - ./config/nats-server.conf:/nats/conf/nats-server.conf:ro
+      - ./nats-data:/data:rw
+    command: [ "--js", "-m", "8222", "-c", "/nats/conf/nats-server.conf" ]
+
+  meilisearch:
+    image: getmeili/meilisearch:prototype-japanese-13
+    ports:
+      - "7700:7700"
+    volumes:
+      - ./meili-data/data.ms:/data.ms:rw
+    environment:
+      - MEILI_DB_PATH=/data.ms
+
+  minio:
+    image: quay.io/minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=password
+      - MINIO_ACCESS_KEY=minio
+      - MINIO_SECRET_KEY=minio123
+    volumes:
+      - ./minio-data/data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"

@@ -1,0 +1,15 @@
+[workspace]
+resolver = "2"
+members = [
+    "rust/bin/kurec",
+    "rust/libs/domain",
+    "rust/libs/infra/nats",
+    "rust/libs/infra/stream",
+]
+
+[workspace.package]
+version = "0.0.1"
+authors = ["KuRec Team"]
+description = "KuRec"
+documentation = "https://kurec-tool.github.io"
+edition = "2024"
