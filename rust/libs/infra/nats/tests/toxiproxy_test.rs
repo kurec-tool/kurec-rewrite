@@ -21,6 +21,8 @@ fn init_test_logging() {
         .try_init();
 }
 
+const PROXY_NAME: &str = "nats-proxy";
+
 // テスト終了時に自動的にコンテナを停止・削除するための構造体
 struct TestToxiproxyNatsContainer {
     api_url: String,
@@ -141,14 +143,14 @@ async fn setup_toxi_proxy_nats() -> Result<TestToxiproxyNatsContainer> {
         }
     }
 
-    let proxy_exists = check_proxy_exists(&http_client, &api_url, "nats-proxy").await?;
+    let proxy_exists = check_proxy_exists(&http_client, &api_url, PROXY_NAME).await?;
     debug!(nats_host = %nats_host, nats_port = %nats_port, "プロキシを作成します");
     if !proxy_exists {
         // プロキシを作成
         create_proxy(
             &http_client,
             &api_url,
-            "nats-proxy",
+            PROXY_NAME,
             "0.0.0.0:4222",
             &format!("{}:{}", nats_host, nats_port),
         )
@@ -314,7 +316,7 @@ async fn test_nats_reconnection() -> Result<()> {
     let toxiproxy_url = &toxi_proxy_nats_container.api_url;
 
     // プロキシ名
-    let proxy_name = "nats-proxy";
+    let proxy_name = PROXY_NAME;
 
     // アップストリームアドレス (NATS コンテナ)
     // Docker ネットワーク内ではコンテナ名で解決できる
