@@ -1,39 +1,30 @@
-//! NATS 再接続機能のテスト
+//! Toxiproxy経由のNATS接続作成
 //!
 //! このモジュールでは、toxiproxyを使用してネットワーク障害をシミュレートし、
-//! NATS クライアントの再接続機能をテストします。
+//! NATS クライアントをテストするためのユーティリティ関数を提供します。
 
 use anyhow::Result;
-use bollard::{Docker, network::CreateNetworkOptions, secret::IpamConfig};
-use nats::connect;
+use bollard::{Docker, network::CreateNetworkOptions};
 use reqwest::Client as HttpClient;
 use serde_json::json;
 use std::{collections::HashMap, time::Duration};
 use testcontainers::{ContainerAsync, GenericImage, ImageExt, core::WaitFor, runners::AsyncRunner};
 use tokio::time;
 use tracing::debug;
-use tracing_subscriber::{EnvFilter, fmt};
 
-fn init_test_logging() {
-    let _ = fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .with_test_writer()
-        .try_init();
-}
-
-const PROXY_NAME: &str = "nats-proxy";
+pub const PROXY_NAME: &str = "nats-proxy";
 
 // テスト終了時に自動的にコンテナを停止・削除するための構造体
-struct TestToxiproxyNatsContainer {
-    api_url: String,
-    nats_url: String,
-    network_name: String,
+pub struct TestToxiproxyNatsContainer {
+    pub api_url: String,
+    pub nats_url: String,
+    pub network_name: String,
     _nats_container: ContainerAsync<GenericImage>,
     _toxi_proxy_container: ContainerAsync<GenericImage>,
 }
 
 impl TestToxiproxyNatsContainer {
-    async fn cleanup(&mut self) -> Result<()> {
+    pub async fn cleanup(&mut self) -> Result<()> {
         // コンテナを停止・削除
         self._nats_container.stop().await.unwrap();
         self._toxi_proxy_container.stop().await.unwrap();
@@ -88,7 +79,7 @@ async fn create_docker_network() -> Result<String> {
 }
 
 // テスト用の NATS サーバーを起動し、コンテナハンドラを返す
-async fn setup_toxi_proxy_nats() -> Result<TestToxiproxyNatsContainer> {
+pub async fn setup_toxi_proxy_nats() -> Result<TestToxiproxyNatsContainer> {
     ensure_docker().await;
     debug!("Starting NATS container for testing...");
 
@@ -223,7 +214,7 @@ async fn create_proxy(
 }
 
 // Toxiproxy API を使用してプロキシを無効化する
-async fn disable_proxy(
+pub async fn disable_proxy(
     http_client: &HttpClient,
     toxiproxy_url: &str,
     proxy_name: &str,
@@ -247,7 +238,7 @@ async fn disable_proxy(
 }
 
 // Toxiproxy API を使用してプロキシを有効化する
-async fn enable_proxy(
+pub async fn enable_proxy(
     http_client: &HttpClient,
     toxiproxy_url: &str,
     proxy_name: &str,
@@ -266,112 +257,6 @@ async fn enable_proxy(
     }
 
     debug!(proxy_name = %proxy_name, "Toxiproxy プロキシを有効化しました");
-
-    Ok(())
-}
-
-// 基本的な接続テスト
-#[tokio::test]
-async fn test_toxiproxy_basic_connection() -> Result<()> {
-    init_test_logging();
-
-    // Toxiproxy コンテナを起動
-    let mut toxi_proxy_nats_container = setup_toxi_proxy_nats().await?;
-
-    time::sleep(Duration::from_secs(5)).await;
-
-    let nats_url = toxi_proxy_nats_container.nats_url.clone();
-
-    debug!(url = %nats_url, "Toxiproxy 経由で NATS に接続します");
-
-    // プロキシ経由で NATS に接続
-    let client = connect(&nats_url).await?;
-
-    // 接続状態を確認
-    client.client().flush().await?;
-    assert_eq!(
-        client.client().connection_state(),
-        async_nats::connection::State::Connected
-    );
-
-    debug!("Toxiproxy 経由での基本的な接続テストが成功しました");
-    toxi_proxy_nats_container.cleanup().await?;
-    Ok(())
-}
-
-// 再接続テスト
-#[tokio::test]
-async fn test_nats_reconnection() -> Result<()> {
-    init_test_logging();
-
-    // NATS コンテナを起動
-    let mut toxi_proxy_nats_container = setup_toxi_proxy_nats().await?;
-
-    time::sleep(Duration::from_secs(5)).await;
-
-    // HTTP クライアントを作成
-    let http_client = HttpClient::new();
-
-    // Toxiproxy API の URL
-    let toxiproxy_url = &toxi_proxy_nats_container.api_url;
-
-    // プロキシ名
-    let proxy_name = PROXY_NAME;
-
-    // アップストリームアドレス (NATS コンテナ)
-    // Docker ネットワーク内ではコンテナ名で解決できる
-    let upstream_addr = "localhost:4222".to_string();
-    debug!("NATS upstream address: {}", upstream_addr);
-
-    // プロキシ経由の NATS URL
-    let nats_url = toxi_proxy_nats_container.nats_url.clone();
-
-    debug!(url = %nats_url, "Toxiproxy 経由で NATS に接続します");
-
-    // まず通常接続を確認
-    let client = connect(&nats_url).await?;
-    client.client().flush().await?;
-    assert_eq!(
-        client.client().connection_state(),
-        async_nats::connection::State::Connected
-    );
-
-    // プロキシを無効化
-    disable_proxy(&http_client, toxiproxy_url, proxy_name).await?;
-
-    // tokio::select を使って並列処理を実装
-    // 1. connect() を呼び出す
-    // 2. 1秒待ってからプロキシを元に戻す
-    let reconnection_result = tokio::select! {
-        connect_result = connect(&nats_url) => {
-            debug!("connect() が完了しました");
-            connect_result
-        }
-        _ = async {
-            // 1秒待機
-            time::sleep(Duration::from_secs(1)).await;
-            // プロキシを元に戻す
-            enable_proxy(&http_client, &toxiproxy_url, proxy_name).await?;
-            debug!("プロキシを再有効化しました");
-            Ok::<_, anyhow::Error>(())
-        } => {
-            // 再接続を待機
-            time::sleep(Duration::from_secs(3)).await;
-            debug!("再接続を待機しています...");
-            connect(&nats_url).await
-        }
-    };
-
-    // 再接続が成功したことを確認
-    let reconnected_client = reconnection_result?;
-    reconnected_client.client().flush().await?;
-    assert_eq!(
-        reconnected_client.client().connection_state(),
-        async_nats::connection::State::Connected
-    );
-
-    debug!("NATS 再接続テストが成功しました");
-    toxi_proxy_nats_container.cleanup().await?;
 
     Ok(())
 }
