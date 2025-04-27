@@ -30,10 +30,10 @@ pub enum MirakcSseStreamError {
 
 #[derive(Clone, Debug)]
 pub struct MirakcEventInput {
-    mirakc_url: String,
-    event_type: String,
-    data: String,
-    received_at: chrono::DateTime<Utc>,
+    pub mirakc_url: String,
+    pub event_type: String,
+    pub data: String,
+    pub received_at: chrono::DateTime<Utc>,
 }
 
 /// mirakc SSEイベントストリームを取得する
@@ -52,8 +52,6 @@ pub async fn get_mirakc_event_stream(
     let client = eventsource_client::ClientBuilder::for_url(&url)
         .map_err(MirakcSseConnectionError::SseStreamError)?
         .connect_timeout(Duration::from_secs(1))
-        .read_timeout(Duration::from_secs(1))
-        .write_timeout(Duration::from_secs(1))
         .reconnect(reconnect_options)
         .build();
     debug!("SSEクライアントを構築完了: {}", url);
@@ -90,6 +88,10 @@ pub async fn get_mirakc_event_stream(
                             received_at: Utc::now(),
                         };
                         Some(event)
+                    }
+                    Err(eventsource_client::Error::TimedOut) => {
+                        debug!("SSEタイムアウト");
+                        None
                     }
                     Err(e) => {
                         let prev_count = retry_count.fetch_add(1, Ordering::SeqCst);

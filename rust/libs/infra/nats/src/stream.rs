@@ -1,20 +1,17 @@
-use std::{any::type_name, time::Duration};
+use std::any::type_name;
 
 use async_nats::jetstream::consumer::PullConsumer;
 use domain::types::Event;
 use futures::{StreamExt, TryStreamExt};
 use tracing::debug;
 
-use crate::{
-    error::NatsInfraError,
-    nats::{NatsClient, connect_nats},
-};
+use crate::{error::NatsInfraError, nats::NatsClient};
 
 pub trait EventReader<E: Event> {
-    async fn next(&self) -> Result<E, NatsInfraError>;
+    fn next(&self) -> impl std::future::Future<Output = Result<E, NatsInfraError>> + Send;
 }
 
-struct EventStoreReader<E: Event> {
+pub struct EventStoreReader<E: Event> {
     subject: String,
     consumer: PullConsumer,
     _phantom: std::marker::PhantomData<E>,
@@ -63,7 +60,6 @@ impl<E: Event> EventReader<E> for EventStoreReader<E> {
 
 pub struct EventStore<E: Event> {
     nats_client: NatsClient,
-    consumer: Option<PullConsumer>,
     _phantom: std::marker::PhantomData<E>,
 }
 
@@ -71,20 +67,20 @@ impl<E: Event> EventStore<E> {
     pub async fn new(nats_client: NatsClient) -> Result<Self, NatsInfraError> {
         Ok(Self {
             nats_client,
-            consumer: None,
             _phantom: std::marker::PhantomData,
         })
     }
 
+    #[cfg(test)]
     fn get_client(&self) -> &NatsClient {
         &self.nats_client
     }
 
-    fn get_subject() -> String {
+    pub fn get_subject() -> String {
         let event_type_name = type_name::<E>();
         let mut segments = event_type_name
             .rsplit("::")
-            .map(|s| heck::ToSnakeCase::to_snake_case(s));
+            .map(heck::ToSnakeCase::to_snake_case);
         let event_name = segments.next().unwrap_or("unknown_event".to_string());
         let resource_name = segments.next().unwrap_or("unknown_resource".to_string());
         let domain_name = segments.next().unwrap_or("unknown_domain".to_string());
@@ -154,7 +150,7 @@ impl<E: Event> EventStore<E> {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_util::setup_toxi_proxy_nats;
+    use crate::{nats::connect_nats, test_util::setup_toxi_proxy_nats};
 
     use super::*;
     use futures::StreamExt;

@@ -24,6 +24,7 @@ impl NatsClient {
     }
 
     /// 接続済みの NATS クライアントを取得します。
+    #[cfg(test)]
     pub(crate) fn client(&self) -> &Client {
         &self.client
     }
@@ -37,7 +38,7 @@ impl NatsClient {
 /// 指定された URL で NATS サーバーに接続し、`NatsClient` を返します。
 ///
 /// 接続オプションには、再接続試行などのデフォルト設定が含まれます。
-pub(crate) async fn connect_nats(nats_url: &str) -> Result<NatsClient, NatsInfraError> {
+pub async fn connect_nats(nats_url: &str) -> Result<NatsClient, NatsInfraError> {
     info!(url = %nats_url, "NATS サーバーへの接続を開始します...");
 
     // TODO: 設定ファイルから読み込むなど、より柔軟なオプション設定を検討

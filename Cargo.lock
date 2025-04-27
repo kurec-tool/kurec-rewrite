@@ -1237,6 +1237,16 @@ dependencies = [
 [[package]]
 name = "kurec"
 version = "0.0.1"
+dependencies = [
+ "domain",
+ "futures",
+ "mirakc",
+ "nats",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
 
 [[package]]
 name = "lazy_static"
@@ -1340,6 +1350,7 @@ dependencies = [
  "eventsource-client",
  "futures",
  "reqwest",
+ "serde",
  "thiserror 2.0.12",
  "tokio",
  "tracing",

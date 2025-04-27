@@ -1,5 +1,6 @@
 mod sse;
 pub use sse::*;
+pub mod sse_event;
 
 #[cfg(test)]
 mod tests {

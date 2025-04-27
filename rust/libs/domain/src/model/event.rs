@@ -5,7 +5,9 @@ pub mod recording {
         use crate::types::Event;
 
         #[derive(Clone, Debug, Serialize, Deserialize)]
-        pub struct EpgUpdated {}
+        pub struct EpgUpdated {
+            pub service_id: i64,
+        }
         impl Event for EpgUpdated {}
     }
 }
