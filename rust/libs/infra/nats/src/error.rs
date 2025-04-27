@@ -1,5 +1,3 @@
-use domain::types::Event;
-
 /// インフラ層でのエラー
 #[derive(thiserror::Error, Debug)]
 pub enum NatsInfraError {

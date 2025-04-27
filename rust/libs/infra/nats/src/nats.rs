@@ -12,7 +12,7 @@ use crate::error::NatsInfraError;
 /// NATS クライアントと関連コンテキストを保持するラッパー構造体。
 #[derive(Clone, Debug)]
 pub struct NatsClient {
-    client: Client,
+    _client: Client,
     js_context: jetstream::context::Context,
 }
 
@@ -20,13 +20,16 @@ impl NatsClient {
     /// 新しい NatsClient インスタンスを作成します (内部利用)。
     fn new(client: Client) -> Self {
         let js_context = jetstream::new(client.clone());
-        Self { client, js_context }
+        Self {
+            _client: client,
+            js_context,
+        }
     }
 
     /// 接続済みの NATS クライアントを取得します。
     #[cfg(test)]
     pub(crate) fn client(&self) -> &Client {
-        &self.client
+        &self._client
     }
 
     /// 接続済みの JetStream コンテキストを取得します。
@@ -191,7 +194,7 @@ mod tests {
                 // 1秒待機
                 time::sleep(Duration::from_secs(1)).await;
                 // プロキシを元に戻す
-                enable_proxy(&http_client, &toxiproxy_url, proxy_name).await?;
+                enable_proxy(&http_client, toxiproxy_url, proxy_name).await?;
                 debug!("プロキシを再有効化しました");
                 Ok::<_, anyhow::Error>(())
             } => {
