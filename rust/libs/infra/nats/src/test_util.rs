@@ -2,16 +2,24 @@
 //!
 //! このモジュールでは、toxiproxyを使用してネットワーク障害をシミュレートし、
 //! NATS クライアントをテストするためのユーティリティ関数を提供します。
+//! 
 
 use anyhow::Result;
-use bollard::{Docker, network::CreateNetworkOptions};
 use reqwest::Client as HttpClient;
 use serde_json::json;
 use std::{collections::HashMap, time::Duration};
-use testcontainers::{ContainerAsync, GenericImage, ImageExt, core::WaitFor, runners::AsyncRunner};
 use tokio::time;
 use tracing::debug;
 use tracing_subscriber::{EnvFilter, fmt};
+
+pub fn is_ci() -> bool {
+    std::env::var("CI").is_ok()
+}
+
+#[cfg(not(feature = "skip_docker_tests"))]
+use bollard::{Docker, network::CreateNetworkOptions};
+#[cfg(not(feature = "skip_docker_tests"))]
+use testcontainers::{ContainerAsync, GenericImage, ImageExt, core::WaitFor, runners::AsyncRunner};
 
 /// テスト用のロギングを初期化
 pub fn init_test_logging() {
@@ -24,6 +32,7 @@ pub fn init_test_logging() {
 pub const PROXY_NAME: &str = "nats-proxy";
 
 // テスト終了時に自動的にコンテナを停止・削除するための構造体
+#[cfg(not(feature = "skip_docker_tests"))]
 pub struct TestToxiproxyNatsContainer {
     pub api_url: String,
     pub nats_url: String,
@@ -32,6 +41,7 @@ pub struct TestToxiproxyNatsContainer {
     _toxi_proxy_container: ContainerAsync<GenericImage>,
 }
 
+#[cfg(not(feature = "skip_docker_tests"))]
 impl TestToxiproxyNatsContainer {
     pub async fn cleanup(&mut self) -> Result<()> {
         // コンテナを停止・削除
@@ -43,6 +53,21 @@ impl TestToxiproxyNatsContainer {
     }
 }
 
+#[cfg(feature = "skip_docker_tests")]
+pub struct TestToxiproxyNatsContainer {
+    pub api_url: String,
+    pub nats_url: String,
+    pub network_name: String,
+}
+
+#[cfg(feature = "skip_docker_tests")]
+impl TestToxiproxyNatsContainer {
+    pub async fn cleanup(&mut self) -> Result<()> {
+        Ok(())
+    }
+}
+
+#[cfg(not(feature = "skip_docker_tests"))]
 // Docker が利用可能かチェック
 async fn ensure_docker() {
     // Docker デーモンが準備できるまで待機
@@ -58,6 +83,7 @@ async fn ensure_docker() {
     }
 }
 
+#[cfg(not(feature = "skip_docker_tests"))]
 /// Docker ネットワークを作成
 async fn create_docker_network() -> Result<String> {
     ensure_docker().await;
@@ -87,6 +113,7 @@ async fn create_docker_network() -> Result<String> {
     Ok(network_name)
 }
 
+#[cfg(not(feature = "skip_docker_tests"))]
 // テスト用の NATS サーバーを起動し、コンテナハンドラを返す
 pub async fn setup_toxi_proxy_nats() -> Result<TestToxiproxyNatsContainer> {
     ensure_docker().await;
@@ -160,6 +187,21 @@ pub async fn setup_toxi_proxy_nats() -> Result<TestToxiproxyNatsContainer> {
     Ok(TestToxiproxyNatsContainer {
         _nats_container: nats_container,
         _toxi_proxy_container: toxi_proxy_container,
+        api_url,
+        nats_url,
+        network_name,
+    })
+}
+
+#[cfg(feature = "skip_docker_tests")]
+pub async fn setup_toxi_proxy_nats() -> Result<TestToxiproxyNatsContainer> {
+    debug!("CI環境用のモックNATSサーバーを設定します");
+    
+    let api_url = "http://localhost:8474".to_string();
+    let nats_url = "nats://localhost:4222".to_string();
+    let network_name = "mock_network".to_string();
+    
+    Ok(TestToxiproxyNatsContainer {
         api_url,
         nats_url,
         network_name,

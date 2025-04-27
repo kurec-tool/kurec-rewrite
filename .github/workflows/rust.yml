@@ -41,5 +41,12 @@ jobs:
     - name: Run clippy
       run: cargo clippy -- -D warnings
     
+    - name: Set up Docker
+      uses: docker/setup-buildx-action@v3
+      with:
+        install: true
+    
     - name: Run tests
       run: cargo test
+      env:
+        RUST_LOG: debug
