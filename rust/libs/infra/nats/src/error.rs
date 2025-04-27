@@ -1,3 +1,5 @@
+use domain::types::Event;
+
 /// インフラ層でのエラー
 #[derive(thiserror::Error, Debug)]
 pub enum NatsInfraError {
@@ -32,8 +34,15 @@ pub enum NatsInfraError {
     },
 
     #[error("JSON シリアライズ/デシリアライズエラー: {source}")]
-    Json {
+    JsonSerialize {
         subject: String,
+        source: serde_json::Error,
+    },
+
+    #[error("JSON デシリアライズエラー: {source}")]
+    JsonDeserialize {
+        subject: String,
+        message: Vec<u8>,
         source: serde_json::Error,
     },
 }

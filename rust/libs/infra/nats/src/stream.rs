@@ -1,6 +1,8 @@
 use std::{any::type_name, time::Duration};
 
+use async_nats::jetstream::consumer::PullConsumer;
 use domain::types::Event;
+use futures::{StreamExt, TryStreamExt};
 use tracing::debug;
 
 use crate::{
@@ -8,8 +10,60 @@ use crate::{
     nats::{NatsClient, connect_nats},
 };
 
+pub trait EventReader<E: Event> {
+    async fn next(&self) -> Result<E, NatsInfraError>;
+}
+
+struct EventStoreReader<E: Event> {
+    subject: String,
+    consumer: PullConsumer,
+    _phantom: std::marker::PhantomData<E>,
+}
+
+impl<E: Event> EventReader<E> for EventStoreReader<E> {
+    async fn next(&self) -> Result<E, NatsInfraError> {
+        loop {
+            let result = self
+                .consumer
+                .fetch()
+                .max_messages(1)
+                .messages()
+                .await
+                .map_err(|e| NatsInfraError::StreamRetrieval {
+                    stream_name: "unknown".to_string(),
+                    source: Box::new(e),
+                })?
+                .into_stream()
+                .next()
+                .await;
+            match result {
+                Some(Ok(msg)) => {
+                    let ev: E = serde_json::from_slice(&msg.payload).map_err(|e| {
+                        NatsInfraError::JsonDeserialize {
+                            subject: self.subject.clone(),
+                            message: msg.payload.clone().into(),
+                            source: e,
+                        }
+                    })?;
+                    return Ok(ev);
+                }
+                Some(Err(e)) => {
+                    return Err(NatsInfraError::StreamRetrieval {
+                        stream_name: "unknown".to_string(),
+                        source: e,
+                    });
+                }
+                None => {
+                    debug!("メッセージが届いていないので再試行します...")
+                }
+            }
+        }
+    }
+}
+
 pub struct EventStore<E: Event> {
     nats_client: NatsClient,
+    consumer: Option<PullConsumer>,
     _phantom: std::marker::PhantomData<E>,
 }
 
@@ -17,6 +71,7 @@ impl<E: Event> EventStore<E> {
     pub async fn new(nats_client: NatsClient) -> Result<Self, NatsInfraError> {
         Ok(Self {
             nats_client,
+            consumer: None,
             _phantom: std::marker::PhantomData,
         })
     }
@@ -36,12 +91,12 @@ impl<E: Event> EventStore<E> {
         format!("{domain_name}.{resource_name}.{event_name}")
     }
 
-    pub async fn publish_event(&self, event: E) -> Result<(), NatsInfraError> {
+    pub async fn publish_event(&self, event: &E) -> Result<(), NatsInfraError> {
         let subject = Self::get_subject();
 
         debug!("Publishing event on subject: {}", &subject);
         let js = self.nats_client.jetstream_context();
-        let payload = serde_json::to_vec(&event).map_err(|e| NatsInfraError::Json {
+        let payload = serde_json::to_vec(&event).map_err(|e| NatsInfraError::JsonSerialize {
             subject: subject.clone(),
             source: e,
         })?;
@@ -58,13 +113,48 @@ impl<E: Event> EventStore<E> {
             })?;
         Ok(())
     }
+
+    pub async fn get_reader(
+        &self,
+        durable_name: String,
+    ) -> Result<impl EventReader<E>, NatsInfraError> {
+        let subject = Self::get_subject();
+        let js = self.nats_client.jetstream_context();
+        let stream = js
+            .get_or_create_stream(async_nats::jetstream::stream::Config {
+                name: "test-stream".to_string(),
+                subjects: vec![subject.clone()],
+                ..Default::default()
+            })
+            .await
+            .map_err(|e| NatsInfraError::StreamCreation {
+                stream_name: subject.clone(),
+                source: Box::new(e),
+            })?;
+
+        let consumer = stream
+            .create_consumer(async_nats::jetstream::consumer::pull::Config {
+                filter_subject: subject.clone(),
+                durable_name: Some(durable_name),
+                ..Default::default()
+            })
+            .await
+            .map_err(|e| NatsInfraError::StreamRetrieval {
+                stream_name: subject.clone(),
+                source: Box::new(e),
+            })?;
+
+        Ok(EventStoreReader {
+            subject,
+            consumer,
+            _phantom: std::marker::PhantomData,
+        })
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use serde::{Deserialize, Serialize};
-
-    use crate::{nats, test_util::setup_toxi_proxy_nats};
+    use crate::test_util::setup_toxi_proxy_nats;
 
     use super::*;
     use futures::StreamExt;
@@ -74,15 +164,14 @@ mod tests {
             use serde::{Deserialize, Serialize};
 
             #[derive(Clone, Debug, Deserialize, Serialize)]
-            pub struct TestEvent;
+            pub struct TestEvent {
+                pub data: String,
+            }
         }
     }
     use test_domain::test_resource::TestEvent;
 
     impl Event for TestEvent {}
-
-    #[derive(Clone)]
-    struct TestStream;
 
     type TestEventStore = EventStore<TestEvent>;
 
@@ -111,8 +200,10 @@ mod tests {
             .await
             .unwrap();
 
-        let event = TestEvent;
-        event_stream.publish_event(event).await.unwrap();
+        let event = TestEvent {
+            data: "test data".to_string(),
+        };
+        event_stream.publish_event(&event).await.unwrap();
 
         let mut consumer = stream
             .create_consumer(async_nats::jetstream::consumer::pull::Config {
@@ -127,7 +218,40 @@ mod tests {
         let msg = messages.next().await.unwrap().unwrap();
 
         assert_eq!(msg.subject.as_str(), "test_domain.test_resource.test_event");
-        assert_eq!(msg.payload, serde_json::to_vec(&TestEvent).unwrap());
+        assert_eq!(msg.payload, serde_json::to_vec(&event).unwrap());
+
+        proxy_nats.cleanup().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_get_reader() {
+        let mut proxy_nats = setup_toxi_proxy_nats().await.unwrap();
+
+        let nats_url = &proxy_nats.nats_url;
+        let nats_client = connect_nats(nats_url).await.unwrap();
+        let event_stream = TestEventStore::new(nats_client).await.unwrap();
+
+        // ストリームを作成しておく
+        let js = event_stream.get_client().jetstream_context();
+        let stream = js
+            .get_or_create_stream(async_nats::jetstream::stream::Config {
+                name: "test-stream".to_string(),
+                subjects: vec![TestEventStore::get_subject()],
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+
+        // イベントを発行
+        let event = TestEvent {
+            data: "test data".to_string(),
+        };
+        event_stream.publish_event(&event).await.unwrap();
+
+        let durable_name = "test_consumer".to_string();
+        let reader = event_stream.get_reader(durable_name.clone()).await.unwrap();
+        let ev = reader.next().await.unwrap();
+        assert_eq!(ev.data, event.data);
 
         proxy_nats.cleanup().await.unwrap();
     }
