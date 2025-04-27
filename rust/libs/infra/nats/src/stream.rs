@@ -205,7 +205,7 @@ mod tests {
         };
         event_stream.publish_event(&event).await.unwrap();
 
-        let mut consumer = stream
+        let consumer = stream
             .create_consumer(async_nats::jetstream::consumer::pull::Config {
                 filter_subject: TestEventStore::get_subject(),
                 durable_name: Some("test_consumer".to_string()),
@@ -233,7 +233,7 @@ mod tests {
 
         // ストリームを作成しておく
         let js = event_stream.get_client().jetstream_context();
-        let stream = js
+        let _stream = js
             .get_or_create_stream(async_nats::jetstream::stream::Config {
                 name: "test-stream".to_string(),
                 subjects: vec![TestEventStore::get_subject()],
