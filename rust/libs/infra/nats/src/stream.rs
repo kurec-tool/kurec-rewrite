@@ -215,8 +215,6 @@ mod tests {
 
         assert_eq!(msg.subject.as_str(), "test_domain.test_resource.test_event");
         assert_eq!(msg.payload, serde_json::to_vec(&event).unwrap());
-
-        proxy_nats.cleanup().await.unwrap();
     }
 
     #[tokio::test]
@@ -248,7 +246,5 @@ mod tests {
         let reader = event_stream.get_reader(durable_name.clone()).await.unwrap();
         let ev = reader.next().await.unwrap();
         assert_eq!(ev.data, event.data);
-
-        proxy_nats.cleanup().await.unwrap();
     }
 }

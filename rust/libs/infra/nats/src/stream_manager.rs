@@ -57,8 +57,6 @@ mod tests {
             let stream = js.get_stream(&config.name).await;
             assert!(stream.is_ok());
         }
-
-        proxy_nats.cleanup().await.unwrap();
     }
 
     #[tokio::test]
@@ -93,8 +91,6 @@ mod tests {
         enable_proxy(&http_client, &proxy_nats.api_url, PROXY_NAME)
             .await
             .unwrap();
-
-        proxy_nats.cleanup().await.unwrap();
     }
 
     #[tokio::test]
@@ -120,7 +116,5 @@ mod tests {
                 }
             }
         }
-
-        proxy_nats.cleanup().await.unwrap();
     }
 }

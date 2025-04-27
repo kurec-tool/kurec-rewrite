@@ -8,7 +8,11 @@ use bollard::{Docker, network::CreateNetworkOptions};
 use reqwest::Client as HttpClient;
 use serde_json::json;
 use std::{collections::HashMap, time::Duration};
-use testcontainers::{ContainerAsync, GenericImage, ImageExt, core::WaitFor, runners::AsyncRunner};
+use testcontainers::{
+    ContainerAsync, GenericImage, ImageExt,
+    core::{Host, WaitFor},
+    runners::AsyncRunner,
+};
 use tokio::time;
 use tracing::debug;
 use tracing_subscriber::{EnvFilter, fmt};
@@ -27,20 +31,8 @@ pub const PROXY_NAME: &str = "nats-proxy";
 pub struct TestToxiproxyNatsContainer {
     pub api_url: String,
     pub nats_url: String,
-    pub network_name: String,
     _nats_container: ContainerAsync<GenericImage>,
     _toxi_proxy_container: ContainerAsync<GenericImage>,
-}
-
-impl TestToxiproxyNatsContainer {
-    pub async fn cleanup(&mut self) -> Result<()> {
-        // コンテナを停止・削除
-        self._nats_container.stop().await.unwrap();
-        self._toxi_proxy_container.stop().await.unwrap();
-        let docker = Docker::connect_with_local_defaults()?;
-        docker.remove_network(&self.network_name).await?;
-        Ok(())
-    }
 }
 
 // Docker が利用可能かチェック
@@ -58,49 +50,16 @@ async fn ensure_docker() {
     }
 }
 
-/// Docker ネットワークを作成
-async fn create_docker_network() -> Result<String> {
-    ensure_docker().await;
-    let id = rand::random_range(0..=u32::MAX) as u32;
-    let network_name = format!("nats_test_network_{}", id).to_string();
-
-    let docker = Docker::connect_with_local_defaults()?;
-
-    // ネットワーク作成オプション
-    let options = CreateNetworkOptions::<String> {
-        name: network_name.clone(),   // ネットワーク名
-        check_duplicate: true,        // 同名があればエラーを返す
-        driver: "bridge".to_string(), // ドライバー
-        internal: false,              // 外部アクセスを許可
-        attachable: true,             // コンテナから attach 可能
-        ingress: false,               // Swarm ingress ではない
-        ipam: bollard::secret::Ipam::default(),
-        enable_ipv6: false,
-        options: HashMap::new(),
-        labels: HashMap::new(),
-    };
-
-    // ネットワークを作成
-    let response = docker.create_network(options).await?;
-    debug!("Created network ID = {}", response.id);
-
-    Ok(network_name)
-}
-
 // テスト用の NATS サーバーを起動し、コンテナハンドラを返す
 pub async fn setup_toxi_proxy_nats() -> Result<TestToxiproxyNatsContainer> {
     ensure_docker().await;
     debug!("Starting NATS container for testing...");
 
-    debug!("creating Docker network...");
-    let network_name = create_docker_network().await?;
-    debug!("done.");
-
     let nats_container = GenericImage::new("nats", "latest")
         .with_exposed_port(4222u16.into())
         .with_wait_for(WaitFor::message_on_stderr("Server is ready"))
+        .with_host("host.docker.internal", Host::HostGateway)
         .with_cmd(vec!["--js", "--debug"])
-        .with_network(network_name.clone())
         .start()
         .await?;
 
@@ -111,7 +70,7 @@ pub async fn setup_toxi_proxy_nats() -> Result<TestToxiproxyNatsContainer> {
         .with_exposed_port(8474u16.into())
         .with_exposed_port(4222u16.into())
         .with_wait_for(WaitFor::message_on_stdout("Starting Toxiproxy HTTP server"))
-        .with_network(network_name.clone())
+        .with_host("host.docker.internal", Host::HostGateway)
         .start()
         .await?;
     debug!("ToxiProxy container started.");
@@ -121,8 +80,8 @@ pub async fn setup_toxi_proxy_nats() -> Result<TestToxiproxyNatsContainer> {
     let toxi_host = toxi_proxy_container.get_host().await?;
     let toxi_api_port = toxi_proxy_container.get_host_port_ipv4(8474u16).await?;
     let toxi_nats_port = toxi_proxy_container.get_host_port_ipv4(4222u16).await?;
-    let nats_host = nats_container.get_bridge_ip_address().await?;
-    let nats_port = 4222u16;
+    let nats_host = "host.docker.internal";
+    let nats_port = nats_container.get_host_port_ipv4(4222u16).await?;
 
     // Toxiproxy APIが応答するか確認
     let http_client = HttpClient::new();
@@ -162,7 +121,6 @@ pub async fn setup_toxi_proxy_nats() -> Result<TestToxiproxyNatsContainer> {
         _toxi_proxy_container: toxi_proxy_container,
         api_url,
         nats_url,
-        network_name,
     })
 }
 

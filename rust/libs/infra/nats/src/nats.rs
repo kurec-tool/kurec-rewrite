@@ -214,8 +214,6 @@ mod tests {
         );
 
         debug!("NATS 再接続テストが成功しました");
-        toxi_proxy_nats_container.cleanup().await?;
-
         Ok(())
     }
 }
