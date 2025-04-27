@@ -234,47 +234,6 @@ pub struct Video {
     pub component_type_name: Option<String>,
 }
 
-impl Video {
-    pub fn get_component_type_name(component_type: u8) -> String {
-        match component_type {
-            0x01 => "480i(525i), アスペクト比4:3".to_string(),
-            0x02 => "480i(525i), アスペクト比16:9 パンベクトルあり".to_string(),
-            0x03 => "480i(525i), アスペクト比16:9 パンベクトルなし".to_string(),
-            0x04 => "480i(525i), アスペクト比 > 16:9".to_string(),
-            0x83 => "4320p, アスペクト比16:9".to_string(),
-            0x91 => "2160p, アスペクト比4:3".to_string(),
-            0x92 => "2160p, アスペクト比16:9 パンベクトルあり".to_string(),
-            0x93 => "2160p, アスペクト比16:9 パンベクトルなし".to_string(),
-            0x94 => "2160p, アスペクト比 > 16:9".to_string(),
-            0xa1 => "480p(525p), アスペクト比4:3".to_string(),
-            0xa2 => "480p(525p), アスペクト比16:9 パンベクトルあり".to_string(),
-            0xa3 => "480p(525p), アスペクト比16:9 パンベクトルなし".to_string(),
-            0xa4 => "480p(525p), アスペクト比 > 16:9".to_string(),
-            0xb1 => "1080i(1125i), アスペクト比4:3".to_string(),
-            0xb2 => "1080i(1125i), アスペクト比16:9 パンベクトルあり".to_string(),
-            0xb3 => "1080i(1125i), アスペクト比16:9 パンベクトルなし".to_string(),
-            0xb4 => "1080i(1125i), アスペクト比 > 16:9".to_string(),
-            0xc1 => "720p(750p), アスペクト比4:3".to_string(),
-            0xc2 => "720p(750p), アスペクト比16:9 パンベクトルあり".to_string(),
-            0xc3 => "720p(750p), アスペクト比16:9 パンベクトルなし".to_string(),
-            0xc4 => "720p(750p), アスペクト比 > 16:9".to_string(),
-            0xd1 => "240p アスペクト比4:3".to_string(),
-            0xd2 => "240p アスペクト比16:9 パンベクトルあり".to_string(),
-            0xd3 => "240p アスペクト比16:9 パンベクトルなし".to_string(),
-            0xd4 => "240p アスペクト比 > 16:9".to_string(),
-            0xe1 => "1080p(1125p), アスペクト比4:3".to_string(),
-            0xe2 => "1080p(1125p), アスペクト比16:9 パンベクトルあり".to_string(),
-            0xe3 => "1080p(1125p), アスペクト比16:9 パンベクトルなし".to_string(),
-            0xe4 => "1080p(1125p), アスペクト比 > 16:9".to_string(),
-            0xf1 => "180p アスペクト比4:3".to_string(),
-            0xf2 => "180p アスペクト比16:9 パンベクトルあり".to_string(),
-            0xf3 => "180p アスペクト比16:9 パンベクトルなし".to_string(),
-            0xf4 => "180p アスペクト比 > 16:9".to_string(),
-            _ => format!("不明なコンポーネントタイプ: {}", component_type),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Audio {
     pub component_type: Option<u8>,
@@ -285,43 +244,6 @@ pub struct Audio {
     pub langs: Option<Vec<String>>,
 }
 
-impl Audio {
-    pub fn get_component_type_name(component_type: u8) -> String {
-        match component_type {
-            0b00000 => "将来使用のためリザーブ".to_string(),
-            0b00001 => "1/0モード(シングルモノ)".to_string(),
-            0b00010 => "1/0 + 1/0モード(デュアルモノ)".to_string(),
-            0b00011 => "2/0モード(ステレオ)".to_string(),
-            0b00100 => "2/1モード".to_string(),
-            0b00101 => "3/0モード".to_string(),
-            0b00110 => "2/2モード".to_string(),
-            0b00111 => "3/1モード".to_string(),
-            0b01000 => "3/2モード".to_string(),
-            0b01001 => "3/2 + LFEモード(3/2.1モード)".to_string(),
-            0b01010 => "3/3.1モード".to_string(),
-            0b01011 => "2/0/0-2/0/2-0.1モード".to_string(),
-            0b01100 => "5/2.1モード".to_string(),
-            0b01101 => "3/2/2.1モード".to_string(),
-            0b01110 => "2/0/0-3/0/2-0.1モード".to_string(),
-            0b01111 => "0/2/0-3/0/2-0.1モード".to_string(),
-            0b10000 => "2/0/0-3/2/3-0.2モード".to_string(),
-            0b10001 => "3/3/3-5/2/3-3/0/0.2モード".to_string(),
-            _ => format!("不明なコンポーネントタイプ: {}", component_type),
-        }
-    }
-
-    pub fn get_sampling_rate_name(sampling_rate: u32) -> String {
-        match sampling_rate {
-            16000 => "16kHz".to_string(),
-            22050 => "22.05kHz".to_string(),
-            24000 => "24kHz".to_string(),
-            32000 => "32kHz".to_string(),
-            44100 => "44.1kHz".to_string(),
-            48000 => "48kHz".to_string(),
-            _ => format!("{}Hz", sampling_rate),
-        }
-    }
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RelatedItem {
