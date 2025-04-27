@@ -1,7 +1,7 @@
 use std::vec;
 
 use clap::{Parser, Subcommand};
-use domain::model::recording::epg::EpgUpdated;
+use domain::model::event::recording::epg::EpgUpdated;
 use futures::StreamExt as _;
 use mirakc::get_mirakc_event_stream;
 use nats::{
@@ -49,7 +49,11 @@ async fn main() {
     let cli = Cli::parse();
 
     match &cli.command {
-        Commands::Events { mirakc_url, nats_url, retry_max } => {
+        Commands::Events {
+            mirakc_url,
+            nats_url,
+            retry_max,
+        } => {
             process_events(mirakc_url, nats_url, *retry_max).await;
         }
     }
