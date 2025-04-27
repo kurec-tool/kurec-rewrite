@@ -1,0 +1,23 @@
+[package]
+name = "mirakc"
+version.workspace = true
+authors.workspace = true
+description.workspace = true
+documentation.workspace = true
+edition.workspace = true
+
+[dependencies]
+async-trait = "0.1.88"
+bytes = "1.10.1"
+chrono = { version = "0.4.40", features = ["serde"] }
+eventsource-client = "0.15.0"
+futures = "0.3.31"
+reqwest = "0.12.15"
+thiserror = "2.0.12"
+tracing = "0.1.41"
+tokio = "1.44.2"
+
+[dev-dependencies]
+test_util = { path = "../../test_util" }
+tokio = { version = "1.44.2", features = ["rt"] }
+warp = "0.3.7"

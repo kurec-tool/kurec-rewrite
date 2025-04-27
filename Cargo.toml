@@ -3,8 +3,10 @@ resolver = "2"
 members = [
     "rust/bin/kurec",
     "rust/libs/domain",
+    "rust/libs/infra/mirakc",
     "rust/libs/infra/nats",
-    "rust/libs/infra/stream", "rust/libs/test_util",
+    "rust/libs/infra/stream",
+    "rust/libs/test_util",
 ]
 
 [workspace.package]
