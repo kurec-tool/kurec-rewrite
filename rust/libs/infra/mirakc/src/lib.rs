@@ -2,6 +2,12 @@ mod sse;
 pub use sse::*;
 pub mod sse_event;
 
+mod http_client;
+pub use http_client::{MirakcApiClient, MirakcApiError};
+
+mod programs_retriever;
+pub use programs_retriever::MirakcProgramsRetriever;
+
 #[cfg(test)]
 mod tests {
     use tracing_subscriber::{EnvFilter, fmt};
