@@ -1,5 +1,6 @@
 use std::vec;
 
+use clap::{Parser, Subcommand};
 use domain::model::recording::epg::EpgUpdated;
 use futures::StreamExt as _;
 use mirakc::get_mirakc_event_stream;
@@ -11,6 +12,33 @@ use nats::{
 use tracing::debug;
 use tracing_subscriber::{EnvFilter, fmt};
 
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+#[command(propagate_version = true)]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// mirakcイベントを処理します
+    Events {
+        /// mirakcサーバーのURL
+        #[arg(short, long, default_value = "http://tuner:40772")]
+        mirakc_url: String,
+
+        /// NATSサーバーのURL
+        #[arg(short, long, default_value = "nats:4222")]
+        nats_url: String,
+
+        /// 再試行の最大回数（0は無限回）
+        #[arg(short, long, default_value_t = 5)]
+        retry_max: u32,
+    },
+    // 将来的に他のコマンドを追加する予定
+}
+
 #[tokio::main]
 async fn main() {
     let _ = fmt()
@@ -18,10 +46,24 @@ async fn main() {
         .with_test_writer()
         .try_init();
 
-    let mut sse_stream = get_mirakc_event_stream("http://tuner:40772", 5)
+    let cli = Cli::parse();
+
+    match &cli.command {
+        Commands::Events {
+            mirakc_url,
+            nats_url,
+            retry_max,
+        } => {
+            process_events(mirakc_url, nats_url, *retry_max).await;
+        }
+    }
+}
+
+async fn process_events(mirakc_url: &str, nats_url: &str, retry_max: u32) {
+    let mut sse_stream = get_mirakc_event_stream(mirakc_url, retry_max)
         .await
         .unwrap();
-    let nats_client = connect_nats("nats:4222").await.unwrap();
+    let nats_client = connect_nats(nats_url).await.unwrap();
     let event_store = EventStore::<EpgUpdated>::new(nats_client.clone())
         .await
         .unwrap();
