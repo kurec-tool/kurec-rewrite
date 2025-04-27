@@ -2,7 +2,6 @@
 //!
 //! このモジュールでは、toxiproxyを使用してネットワーク障害をシミュレートし、
 //! NATS クライアントをテストするためのユーティリティ関数を提供します。
-//! 
 
 use anyhow::Result;
 use reqwest::Client as HttpClient;
@@ -196,11 +195,11 @@ pub async fn setup_toxi_proxy_nats() -> Result<TestToxiproxyNatsContainer> {
 #[cfg(feature = "skip_docker_tests")]
 pub async fn setup_toxi_proxy_nats() -> Result<TestToxiproxyNatsContainer> {
     debug!("CI環境用のモックNATSサーバーを設定します");
-    
+
     let api_url = "http://localhost:8474".to_string();
     let nats_url = "nats://localhost:4222".to_string();
     let network_name = "mock_network".to_string();
-    
+
     Ok(TestToxiproxyNatsContainer {
         api_url,
         nats_url,
