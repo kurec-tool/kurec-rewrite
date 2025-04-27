@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use serde_json::Value;
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Program {
@@ -13,7 +14,7 @@ pub struct Program {
     pub is_free: bool,
     pub name: Option<String>,
     pub description: Option<String>,
-    pub extended: Option<HashMap<String, String>>,
+    pub extended: Option<BTreeMap<String, String>>,
     pub extended_description: Option<String>,
     pub genres: Vec<Genre>,
     pub genre_names: Vec<String>,
@@ -234,6 +235,24 @@ pub struct Video {
     pub component_type_name: Option<String>,
 }
 
+impl Video {
+    pub fn get_component_type_name(component_type: u8) -> String {
+        match component_type {
+            0xb1 => "480i(525i), アスペクト比4:3 パンベクトルなし".to_string(),
+            0xb2 => "480i(525i), アスペクト比16:9 パンベクトルあり".to_string(),
+            0xb3 => "1080i(1125i), アスペクト比16:9 パンベクトルなし".to_string(),
+            0xb4 => "720p(750p), アスペクト比16:9 パンベクトルなし".to_string(),
+            0xc1 => "480i(525i), アスペクト比4:3 パンベクトルなし".to_string(),
+            0xc3 => "720p(750p), アスペクト比16:9 パンベクトルなし".to_string(),
+            0xc4 => "240p アスペクト比4:3 パンベクトルなし".to_string(),
+            0xd1 => "1080i(1125i), アスペクト比4:3 パンベクトルなし".to_string(),
+            0xd2 => "1080i(1125i), アスペクト比16:9 パンベクトルあり".to_string(),
+            0xd3 => "2160p(2160p), アスペクト比16:9 パンベクトルなし".to_string(),
+            _ => format!("不明なコンポーネントタイプ: 0x{:x}", component_type),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Audio {
     pub component_type: Option<u8>,
@@ -242,6 +261,35 @@ pub struct Audio {
     pub sampling_rate: Option<u32>,
     pub sampling_rate_name: Option<String>,
     pub langs: Option<Vec<String>>,
+}
+
+impl Audio {
+    pub fn get_component_type_name(component_type: u8) -> String {
+        match component_type {
+            0b00001 => "1/0モード（シングルモノ）".to_string(),
+            0b00010 => "1/0+1/0モード（デュアルモノ）".to_string(),
+            0b00011 => "2/0モード(ステレオ)".to_string(),
+            0b00100 => "2/1モード".to_string(),
+            0b00101 => "3/0モード".to_string(),
+            0b00110 => "2/2モード".to_string(),
+            0b00111 => "3/1モード".to_string(),
+            0b01000 => "3/2モード".to_string(),
+            0b01001 => "3/2+LFEモード（3/2.1モード）".to_string(),
+            _ => format!("不明なコンポーネントタイプ: 0b{:b}", component_type),
+        }
+    }
+
+    pub fn get_sampling_rate_name(sampling_rate: u32) -> String {
+        match sampling_rate {
+            16000 => "16kHz".to_string(),
+            22050 => "22.05kHz".to_string(),
+            24000 => "24kHz".to_string(),
+            32000 => "32kHz".to_string(),
+            44100 => "44.1kHz".to_string(),
+            48000 => "48kHz".to_string(),
+            _ => format!("{}Hz", sampling_rate),
+        }
+    }
 }
 
 

@@ -1,8 +1,7 @@
 use std::time::Duration;
-use std::collections::HashMap;
-
-use reqwest::{Client, StatusCode};
+use std::collections::BTreeMap;
 use serde::Deserialize;
+use reqwest::{Client, StatusCode};
 use thiserror::Error;
 use tracing::{debug, error};
 
@@ -98,7 +97,7 @@ pub struct MirakurunProgram {
     pub is_free: bool,
     pub name: Option<String>,
     pub description: Option<String>,
-    pub extended: Option<HashMap<String, String>>,
+    pub extended: Option<BTreeMap<String, String>>,
     pub video: Option<MirakurunVideo>,
     pub audio: Option<MirakurunAudio>,
     pub audios: Option<Vec<MirakurunAudio>>,
@@ -206,18 +205,18 @@ mod tests {
             .map(|service_id: i64| {
                 let programs = vec![
                     json!({
-                        "id": 323912360808478i64,
-                        "eventId": 8478,
+                        "id": 1,
+                        "eventId": 1001,
                         "serviceId": service_id,
-                        "networkId": 32391,
-                        "startAt": 1745161200000i64,
+                        "networkId": 1,
+                        "startAt": 1619856000000i64,
                         "duration": 1800000,
                         "isFree": true,
-                        "name": "小林さんちのメイドラゴン　＃３[再]",
-                        "description": "＃３「新生活、はじまる！（もちろんうまくいきません）」",
+                        "name": "テスト番組1",
+                        "description": "テスト番組の説明1",
                         "extended": {
-                            "あらすじ◇": "トールに加えカンナも住むようになった小林さんち。賑やかになったのはいいが、いかんせん狭いマンションに三人暮らしは窮屈。そこで引っ越しを決意する小林さん。引っ越した先で滝谷を呼んでパーティーを開くことになったのだが、そこにトールの知り合いである洞窟住まいのファフニールや、太古からこちらの世界に住まうルコアなど、新しいドラゴンたちが小林さんちを訪ねてくる……。",
-                            "出演者": "【小林】\n田村睦心\n【トール】\n桑原由気\n【カンナ】\n長縄まりあ\n【エルマ】\n高田憂希\n【ルコア】\n高橋未奈美\n【ファフニール】\n小野大輔\n【滝谷真】\n中村悠一\n【才川リコ】\n加藤英美里\n【才川ジョージー】\n後藤邑子\n【真ヶ土翔太】\n石原夏織"
+                            "概要": "テスト番組の概要です",
+                            "出演者": "テスト出演者1\nテスト出演者2"
                         },
                         "video": {
                             "type": "mpeg2",
@@ -255,14 +254,14 @@ mod tests {
                             {
                                 "type": "shared",
                                 "networkId": null,
-                                "serviceId": 23608,
-                                "eventId": 8478
+                                "serviceId": 1,
+                                "eventId": 1001
                             },
                             {
                                 "type": "shared",
                                 "networkId": null,
-                                "serviceId": 23609,
-                                "eventId": 8478
+                                "serviceId": 2,
+                                "eventId": 1001
                             }
                         ]
                     })
@@ -306,29 +305,29 @@ mod tests {
         let (url, tx) = create_mock_server();
         let client = MirakcApiClient::new(&url);
         
-        let programs = client.get_programs_by_service(23608).await.unwrap();
+        let programs = client.get_programs_by_service(1).await.unwrap();
         
         assert_eq!(programs.len(), 1);
         let program = &programs[0];
         
-        assert_eq!(program.id, 323912360808478);
-        assert_eq!(program.event_id, 8478);
-        assert_eq!(program.service_id, 23608);
-        assert_eq!(program.network_id, 32391);
-        assert_eq!(program.start_at, 1745161200000);
+        assert_eq!(program.id, 1);
+        assert_eq!(program.event_id, 1001);
+        assert_eq!(program.service_id, 1);
+        assert_eq!(program.network_id, 1);
+        assert_eq!(program.start_at, 1619856000000);
         assert_eq!(program.duration, 1800000);
         assert_eq!(program.is_free, true);
-        assert_eq!(program.name, Some("小林さんちのメイドラゴン　＃３[再]".to_string()));
-        assert_eq!(program.description, Some("＃３「新生活、はじまる！（もちろんうまくいきません）」".to_string()));
+        assert_eq!(program.name, Some("テスト番組1".to_string()));
+        assert_eq!(program.description, Some("テスト番組の説明1".to_string()));
         
         assert!(program.extended.is_some());
         let extended = program.extended.as_ref().unwrap();
         assert_eq!(extended.len(), 2);
-        assert!(extended.contains_key("あらすじ◇"));
+        assert!(extended.contains_key("概要"));
         assert!(extended.contains_key("出演者"));
         
         let extended_desc = program.get_extended_description().unwrap();
-        assert!(extended_desc.contains("あらすじ◇："));
+        assert!(extended_desc.contains("概要："));
         assert!(extended_desc.contains("出演者："));
         
         assert!(program.video.is_some());
@@ -354,8 +353,8 @@ mod tests {
         let related_items = program.related_items.as_ref().unwrap();
         assert_eq!(related_items.len(), 2);
         assert_eq!(related_items[0].r#type, "shared");
-        assert_eq!(related_items[0].service_id, 23608);
-        assert_eq!(related_items[0].event_id, 8478);
+        assert_eq!(related_items[0].service_id, 1);
+        assert_eq!(related_items[0].event_id, 1001);
         
         let _ = tx.send(());
     }
