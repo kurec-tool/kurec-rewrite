@@ -12,6 +12,7 @@ use crate::error::NatsInfraError;
 /// NATS クライアントと関連コンテキストを保持するラッパー構造体。
 #[derive(Clone, Debug)]
 pub struct NatsClient {
+    #[allow(dead_code)]
     client: Client,
     js_context: jetstream::context::Context,
 }
