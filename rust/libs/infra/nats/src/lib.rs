@@ -6,7 +6,7 @@
 use async_nats::{self, ConnectOptions, client::Client, connect_with_options, jetstream};
 use std::time::Duration;
 use thiserror::Error;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 #[derive(Error, Debug)]
 pub enum NatsInfraError {
@@ -51,7 +51,7 @@ impl NatsClient {
 /// 指定された URL で NATS サーバーに接続し、`NatsClient` を返します。
 ///
 /// 接続オプションには、再接続試行などのデフォルト設定が含まれます。
-pub async fn connect(nats_url: &str) -> Result<NatsClient, NatsInfraError> {
+pub async fn connect_nats(nats_url: &str) -> Result<NatsClient, NatsInfraError> {
     info!(url = %nats_url, "NATS サーバーへの接続を開始します...");
 
     // TODO: 設定ファイルから読み込むなど、より柔軟なオプション設定を検討
@@ -62,7 +62,11 @@ pub async fn connect(nats_url: &str) -> Result<NatsClient, NatsInfraError> {
         .reconnect_delay_callback(|attempts| {
             // 再接続試行回数に応じて遅延時間を調整 (例: 指数バックオフ)
             let delay = Duration::from_millis(100 * 2u64.pow(attempts.min(8) as u32)); // 最大約25秒
-            debug!(attempts, delay = ?delay, "NATS 再接続試行...");
+            if attempts > 3 {
+                warn!(attempts, delay = ?delay, "NATS 再接続試行...");
+            } else {
+                debug!(attempts, delay = ?delay, "NATS 再接続試行...");
+            }
             delay
         });
 
@@ -93,7 +97,7 @@ mod tests {
     #[tokio::test]
     async fn test_connect_success() -> Result<()> {
         let proxy = setup_toxi_proxy_nats().await?;
-        let client = connect(&proxy.nats_url).await?;
+        let client = connect_nats(&proxy.nats_url).await?;
         // flush() を呼び出して接続を確立させる
         client.client().flush().await?;
         // 接続状態を確認
@@ -107,7 +111,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_jetstream_context() -> Result<()> {
         let proxy = setup_toxi_proxy_nats().await?;
-        let client = connect(&proxy.nats_url).await?;
+        let client = connect_nats(&proxy.nats_url).await?;
         let js_ctx = client.jetstream_context();
         // 簡単な操作を試す (例: アカウント情報取得 - query_account())
         let result = js_ctx.query_account().await;
@@ -174,7 +178,7 @@ mod tests {
         debug!(url = %nats_url, "Toxiproxy 経由で NATS に接続します");
 
         // まず通常接続を確認
-        let client = connect(&nats_url).await?;
+        let client = connect_nats(&nats_url).await?;
         client.client().flush().await?;
         assert_eq!(
             client.client().connection_state(),
@@ -188,7 +192,7 @@ mod tests {
         // 1. connect() を呼び出す
         // 2. 1秒待ってからプロキシを元に戻す
         let reconnection_result = tokio::select! {
-            connect_result = connect(&nats_url) => {
+            connect_result = connect_nats(&nats_url) => {
                 debug!("connect() が完了しました");
                 connect_result
             }
@@ -203,7 +207,7 @@ mod tests {
                 // 再接続を待機
                 time::sleep(Duration::from_secs(3)).await;
                 debug!("再接続を待機しています...");
-                connect(&nats_url).await
+                connect_nats(&nats_url).await
             }
         };
 
