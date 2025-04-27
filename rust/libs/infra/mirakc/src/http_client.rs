@@ -1,7 +1,7 @@
-use std::time::Duration;
-use std::collections::BTreeMap;
-use serde::Deserialize;
 use reqwest::{Client, StatusCode};
+use serde::Deserialize;
+use std::collections::BTreeMap;
+use std::time::Duration;
 use thiserror::Error;
 use tracing::{debug, error};
 
@@ -27,19 +27,22 @@ impl MirakcApiClient {
             .timeout(Duration::from_secs(10))
             .build()
             .expect("Failed to build HTTP client");
-        
+
         Self {
             base_url: base_url.to_string(),
             client,
         }
     }
 
-    pub async fn get_programs_by_service(&self, service_id: i64) -> Result<Vec<MirakurunProgram>, MirakcApiError> {
+    pub async fn get_programs_by_service(
+        &self,
+        service_id: i64,
+    ) -> Result<Vec<MirakurunProgram>, MirakcApiError> {
         let url = format!("{}/services/{}/programs", self.base_url, service_id);
         debug!("Fetching programs from: {}", url);
-        
+
         let response = self.client.get(&url).send().await?;
-        
+
         match response.status() {
             StatusCode::OK => {
                 let programs = response.json::<Vec<MirakurunProgram>>().await?;
@@ -52,7 +55,10 @@ impl MirakcApiClient {
             }
             status => {
                 error!("Unexpected status code: {}", status);
-                Err(MirakcApiError::UnknownError(format!("Unexpected status code: {}", status)))
+                Err(MirakcApiError::UnknownError(format!(
+                    "Unexpected status code: {}",
+                    status
+                )))
             }
         }
     }
@@ -60,9 +66,9 @@ impl MirakcApiClient {
     pub async fn get_service(&self, service_id: i64) -> Result<MirakurunService, MirakcApiError> {
         let url = format!("{}/services/{}", self.base_url, service_id);
         debug!("Fetching service from: {}", url);
-        
+
         let response = self.client.get(&url).send().await?;
-        
+
         match response.status() {
             StatusCode::OK => {
                 let service = response.json::<MirakurunService>().await?;
@@ -75,7 +81,10 @@ impl MirakcApiClient {
             }
             status => {
                 error!("Unexpected status code: {}", status);
-                Err(MirakcApiError::UnknownError(format!("Unexpected status code: {}", status)))
+                Err(MirakcApiError::UnknownError(format!(
+                    "Unexpected status code: {}",
+                    status
+                )))
             }
         }
     }
@@ -109,7 +118,8 @@ pub struct MirakurunProgram {
 impl MirakurunProgram {
     pub fn get_extended_description(&self) -> Option<String> {
         self.extended.as_ref().map(|extended| {
-            extended.iter()
+            extended
+                .iter()
                 .map(|(key, value)| format!("{}：{}", key, value))
                 .collect::<Vec<String>>()
                 .join("\n")
@@ -172,115 +182,111 @@ pub struct MirakurunService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
     use tokio::sync::oneshot;
     use warp::Filter;
     use warp::http::Response;
-    use serde_json::json;
 
     fn create_mock_server() -> (String, oneshot::Sender<()>) {
         let (tx, rx) = oneshot::channel();
-        
-        let service_route = warp::path!("services" / i64)
-            .map(|service_id: i64| {
-                if service_id == 1 || service_id == 23608 {
-                    let service = json!({
-                        "id": service_id,
-                        "serviceId": 23608,
-                        "networkId": 32391,
-                        "type": 1,
-                        "name": "テストチャンネル"
-                    });
-                    
-                    Response::builder()
-                        .header("content-type", "application/json")
-                        .body(serde_json::to_string(&service).unwrap())
-                } else {
-                    Response::builder()
-                        .status(404)
-                        .body("Not Found".to_string())
-                }
-            });
-        
-        let programs_route = warp::path!("services" / i64 / "programs")
-            .map(|service_id: i64| {
-                let programs = vec![
-                    json!({
-                        "id": 1,
-                        "eventId": 1001,
-                        "serviceId": service_id,
-                        "networkId": 1,
-                        "startAt": 1619856000000i64,
-                        "duration": 1800000,
-                        "isFree": true,
-                        "name": "テスト番組1",
-                        "description": "テスト番組の説明1",
-                        "extended": {
-                            "概要": "テスト番組の概要です",
-                            "出演者": "テスト出演者1\nテスト出演者2"
-                        },
-                        "video": {
-                            "type": "mpeg2",
-                            "resolution": "1080i",
-                            "streamContent": 1,
-                            "componentType": 179
-                        },
-                        "audio": {
-                            "componentType": 3,
-                            "isMain": true,
-                            "samplingRate": 48000,
-                            "langs": [
-                                "jpn"
-                            ]
-                        },
-                        "audios": [
-                            {
-                                "componentType": 3,
-                                "isMain": true,
-                                "samplingRate": 48000,
-                                "langs": [
-                                    "jpn"
-                                ]
-                            }
-                        ],
-                        "genres": [
-                            {
-                                "lv1": 7,
-                                "lv2": 0,
-                                "un1": 15,
-                                "un2": 15
-                            }
-                        ],
-                        "relatedItems": [
-                            {
-                                "type": "shared",
-                                "networkId": null,
-                                "serviceId": 1,
-                                "eventId": 1001
-                            },
-                            {
-                                "type": "shared",
-                                "networkId": null,
-                                "serviceId": 2,
-                                "eventId": 1001
-                            }
-                        ]
-                    })
-                ];
-                
+
+        let service_route = warp::path!("services" / i64).map(|service_id: i64| {
+            if service_id == 1 || service_id == 23608 {
+                let service = json!({
+                    "id": service_id,
+                    "serviceId": 23608,
+                    "networkId": 32391,
+                    "type": 1,
+                    "name": "テストチャンネル"
+                });
+
                 Response::builder()
                     .header("content-type", "application/json")
-                    .body(serde_json::to_string(&programs).unwrap())
-            });
-        
+                    .body(serde_json::to_string(&service).unwrap())
+            } else {
+                Response::builder()
+                    .status(404)
+                    .body("Not Found".to_string())
+            }
+        });
+
+        let programs_route = warp::path!("services" / i64 / "programs").map(|service_id: i64| {
+            let programs = vec![json!({
+                "id": 1,
+                "eventId": 1001,
+                "serviceId": service_id,
+                "networkId": 1,
+                "startAt": 1619856000000i64,
+                "duration": 1800000,
+                "isFree": true,
+                "name": "テスト番組1",
+                "description": "テスト番組の説明1",
+                "extended": {
+                    "概要": "テスト番組の概要です",
+                    "出演者": "テスト出演者1\nテスト出演者2"
+                },
+                "video": {
+                    "type": "mpeg2",
+                    "resolution": "1080i",
+                    "streamContent": 1,
+                    "componentType": 179
+                },
+                "audio": {
+                    "componentType": 3,
+                    "isMain": true,
+                    "samplingRate": 48000,
+                    "langs": [
+                        "jpn"
+                    ]
+                },
+                "audios": [
+                    {
+                        "componentType": 3,
+                        "isMain": true,
+                        "samplingRate": 48000,
+                        "langs": [
+                            "jpn"
+                        ]
+                    }
+                ],
+                "genres": [
+                    {
+                        "lv1": 7,
+                        "lv2": 0,
+                        "un1": 15,
+                        "un2": 15
+                    }
+                ],
+                "relatedItems": [
+                    {
+                        "type": "shared",
+                        "networkId": null,
+                        "serviceId": 1,
+                        "eventId": 1001
+                    },
+                    {
+                        "type": "shared",
+                        "networkId": null,
+                        "serviceId": 2,
+                        "eventId": 1001
+                    }
+                ]
+            })];
+
+            Response::builder()
+                .header("content-type", "application/json")
+                .body(serde_json::to_string(&programs).unwrap())
+        });
+
         let routes = service_route.or(programs_route);
-        
+
         let (addr, server) =
             warp::serve(routes).bind_with_graceful_shutdown(([127, 0, 0, 1], 0), async {
                 rx.await.ok();
             });
-        
+
         tokio::spawn(server);
-        
+
         let url = format!("http://{}", addr);
         (url, tx)
     }
@@ -289,14 +295,14 @@ mod tests {
     async fn test_get_service() {
         let (url, tx) = create_mock_server();
         let client = MirakcApiClient::new(&url);
-        
+
         let service = client.get_service(1).await.unwrap();
-        
+
         assert_eq!(service.id, 1);
         assert_eq!(service.service_id, 23608);
         assert_eq!(service.network_id, 32391);
         assert_eq!(service.name, "テストチャンネル");
-        
+
         let _ = tx.send(());
     }
 
@@ -304,12 +310,12 @@ mod tests {
     async fn test_get_programs_by_service() {
         let (url, tx) = create_mock_server();
         let client = MirakcApiClient::new(&url);
-        
+
         let programs = client.get_programs_by_service(1).await.unwrap();
-        
+
         assert_eq!(programs.len(), 1);
         let program = &programs[0];
-        
+
         assert_eq!(program.id, 1);
         assert_eq!(program.event_id, 1001);
         assert_eq!(program.service_id, 1);
@@ -319,43 +325,43 @@ mod tests {
         assert_eq!(program.is_free, true);
         assert_eq!(program.name, Some("テスト番組1".to_string()));
         assert_eq!(program.description, Some("テスト番組の説明1".to_string()));
-        
+
         assert!(program.extended.is_some());
         let extended = program.extended.as_ref().unwrap();
         assert_eq!(extended.len(), 2);
         assert!(extended.contains_key("概要"));
         assert!(extended.contains_key("出演者"));
-        
+
         let extended_desc = program.get_extended_description().unwrap();
         assert!(extended_desc.contains("概要："));
         assert!(extended_desc.contains("出演者："));
-        
+
         assert!(program.video.is_some());
         let video = program.video.as_ref().unwrap();
         assert_eq!(video.r#type, Some("mpeg2".to_string()));
         assert_eq!(video.resolution, Some("1080i".to_string()));
         assert_eq!(video.component_type, Some(179));
-        
+
         assert!(program.audio.is_some());
         let audio = program.audio.as_ref().unwrap();
         assert_eq!(audio.component_type, Some(3));
         assert_eq!(audio.is_main, Some(true));
         assert_eq!(audio.sampling_rate, Some(48000));
         assert_eq!(audio.langs, Some(vec!["jpn".to_string()]));
-        
+
         assert!(program.genres.is_some());
         let genres = program.genres.as_ref().unwrap();
         assert_eq!(genres.len(), 1);
         assert_eq!(genres[0].lv1, 7);
         assert_eq!(genres[0].lv2, 0);
-        
+
         assert!(program.related_items.is_some());
         let related_items = program.related_items.as_ref().unwrap();
         assert_eq!(related_items.len(), 2);
         assert_eq!(related_items[0].r#type, "shared");
         assert_eq!(related_items[0].service_id, 1);
         assert_eq!(related_items[0].event_id, 1001);
-        
+
         let _ = tx.send(());
     }
 
@@ -363,11 +369,11 @@ mod tests {
     async fn test_service_not_found() {
         let (url, tx) = create_mock_server();
         let client = MirakcApiClient::new(&url);
-        
+
         let result = client.get_service(999999).await;
-        
+
         assert!(result.is_err());
-        
+
         let _ = tx.send(());
     }
 }

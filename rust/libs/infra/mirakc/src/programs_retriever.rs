@@ -7,7 +7,8 @@ use domain::{
 use tracing::{debug, error};
 
 use crate::http_client::{
-    MirakurunAudio, MirakurunGenre, MirakurunProgram, MirakurunRelatedItem, MirakurunVideo, MirakcApiClient,
+    MirakcApiClient, MirakurunAudio, MirakurunGenre, MirakurunProgram, MirakurunRelatedItem,
+    MirakurunVideo,
 };
 
 #[derive(Clone)]
@@ -22,15 +23,19 @@ impl MirakcProgramsRetriever {
     }
 
     fn convert_program(&self, mirakc_program: MirakurunProgram, service_name: &str) -> Program {
-        let genres = mirakc_program.genres.clone()
+        let genres = mirakc_program
+            .genres
+            .clone()
             .map(|genres| self.convert_genres(genres))
             .unwrap_or_default();
 
-        
         let video = mirakc_program.video.clone().map(|v| self.convert_video(v));
         let audio = mirakc_program.audio.clone().map(|a| self.convert_audio(a));
-        let related_items = mirakc_program.related_items.clone().map(|items| self.convert_related_items(items));
-        
+        let related_items = mirakc_program
+            .related_items
+            .clone()
+            .map(|items| self.convert_related_items(items));
+
         let mut program = Program::new(
             mirakc_program.id,
             mirakc_program.event_id,
@@ -47,16 +52,16 @@ impl MirakcProgramsRetriever {
                 name: service_name.to_string(),
             },
         );
-        
+
         program.extended = mirakc_program.extended.clone();
         program.extended_description = mirakc_program.get_extended_description();
-        
+
         program.video = video;
-        
+
         program.audio = audio;
-        
+
         program.related_items = related_items;
-        
+
         program
     }
 
@@ -69,47 +74,45 @@ impl MirakcProgramsRetriever {
             })
             .collect()
     }
-    
+
     fn convert_video(&self, mirakc_video: MirakurunVideo) -> Video {
-        let component_type_name = mirakc_video.component_type.map(|ct| {
-            match ct {
-                0x01 => "480i(525i), アスペクト比4:3".to_string(),
-                0x02 => "480i(525i), アスペクト比16:9 パンベクトルあり".to_string(),
-                0x03 => "480i(525i), アスペクト比16:9 パンベクトルなし".to_string(),
-                0x04 => "480i(525i), アスペクト比 > 16:9".to_string(),
-                0x83 => "4320p, アスペクト比16:9".to_string(),
-                0x91 => "2160p, アスペクト比4:3".to_string(),
-                0x92 => "2160p, アスペクト比16:9 パンベクトルあり".to_string(),
-                0x93 => "2160p, アスペクト比16:9 パンベクトルなし".to_string(),
-                0x94 => "2160p, アスペクト比 > 16:9".to_string(),
-                0xa1 => "480p(525p), アスペクト比4:3".to_string(),
-                0xa2 => "480p(525p), アスペクト比16:9 パンベクトルあり".to_string(),
-                0xa3 => "480p(525p), アスペクト比16:9 パンベクトルなし".to_string(),
-                0xa4 => "480p(525p), アスペクト比 > 16:9".to_string(),
-                0xb1 => "1080i(1125i), アスペクト比4:3".to_string(),
-                0xb2 => "1080i(1125i), アスペクト比16:9 パンベクトルあり".to_string(),
-                0xb3 => "1080i(1125i), アスペクト比16:9 パンベクトルなし".to_string(),
-                0xb4 => "1080i(1125i), アスペクト比 > 16:9".to_string(),
-                0xc1 => "720p(750p), アスペクト比4:3".to_string(),
-                0xc2 => "720p(750p), アスペクト比16:9 パンベクトルあり".to_string(),
-                0xc3 => "720p(750p), アスペクト比16:9 パンベクトルなし".to_string(),
-                0xc4 => "720p(750p), アスペクト比 > 16:9".to_string(),
-                0xd1 => "240p アスペクト比4:3".to_string(),
-                0xd2 => "240p アスペクト比16:9 パンベクトルあり".to_string(),
-                0xd3 => "240p アスペクト比16:9 パンベクトルなし".to_string(),
-                0xd4 => "240p アスペクト比 > 16:9".to_string(),
-                0xe1 => "1080p(1125p), アスペクト比4:3".to_string(),
-                0xe2 => "1080p(1125p), アスペクト比16:9 パンベクトルあり".to_string(),
-                0xe3 => "1080p(1125p), アスペクト比16:9 パンベクトルなし".to_string(),
-                0xe4 => "1080p(1125p), アスペクト比 > 16:9".to_string(),
-                0xf1 => "180p アスペクト比4:3".to_string(),
-                0xf2 => "180p アスペクト比16:9 パンベクトルあり".to_string(),
-                0xf3 => "180p アスペクト比16:9 パンベクトルなし".to_string(),
-                0xf4 => "180p アスペクト比 > 16:9".to_string(),
-                _ => format!("不明なコンポーネントタイプ: {}", ct),
-            }
+        let component_type_name = mirakc_video.component_type.map(|ct| match ct {
+            0x01 => "480i(525i), アスペクト比4:3".to_string(),
+            0x02 => "480i(525i), アスペクト比16:9 パンベクトルあり".to_string(),
+            0x03 => "480i(525i), アスペクト比16:9 パンベクトルなし".to_string(),
+            0x04 => "480i(525i), アスペクト比 > 16:9".to_string(),
+            0x83 => "4320p, アスペクト比16:9".to_string(),
+            0x91 => "2160p, アスペクト比4:3".to_string(),
+            0x92 => "2160p, アスペクト比16:9 パンベクトルあり".to_string(),
+            0x93 => "2160p, アスペクト比16:9 パンベクトルなし".to_string(),
+            0x94 => "2160p, アスペクト比 > 16:9".to_string(),
+            0xa1 => "480p(525p), アスペクト比4:3".to_string(),
+            0xa2 => "480p(525p), アスペクト比16:9 パンベクトルあり".to_string(),
+            0xa3 => "480p(525p), アスペクト比16:9 パンベクトルなし".to_string(),
+            0xa4 => "480p(525p), アスペクト比 > 16:9".to_string(),
+            0xb1 => "1080i(1125i), アスペクト比4:3".to_string(),
+            0xb2 => "1080i(1125i), アスペクト比16:9 パンベクトルあり".to_string(),
+            0xb3 => "1080i(1125i), アスペクト比16:9 パンベクトルなし".to_string(),
+            0xb4 => "1080i(1125i), アスペクト比 > 16:9".to_string(),
+            0xc1 => "720p(750p), アスペクト比4:3".to_string(),
+            0xc2 => "720p(750p), アスペクト比16:9 パンベクトルあり".to_string(),
+            0xc3 => "720p(750p), アスペクト比16:9 パンベクトルなし".to_string(),
+            0xc4 => "720p(750p), アスペクト比 > 16:9".to_string(),
+            0xd1 => "240p アスペクト比4:3".to_string(),
+            0xd2 => "240p アスペクト比16:9 パンベクトルあり".to_string(),
+            0xd3 => "240p アスペクト比16:9 パンベクトルなし".to_string(),
+            0xd4 => "240p アスペクト比 > 16:9".to_string(),
+            0xe1 => "1080p(1125p), アスペクト比4:3".to_string(),
+            0xe2 => "1080p(1125p), アスペクト比16:9 パンベクトルあり".to_string(),
+            0xe3 => "1080p(1125p), アスペクト比16:9 パンベクトルなし".to_string(),
+            0xe4 => "1080p(1125p), アスペクト比 > 16:9".to_string(),
+            0xf1 => "180p アスペクト比4:3".to_string(),
+            0xf2 => "180p アスペクト比16:9 パンベクトルあり".to_string(),
+            0xf3 => "180p アスペクト比16:9 パンベクトルなし".to_string(),
+            0xf4 => "180p アスペクト比 > 16:9".to_string(),
+            _ => format!("不明なコンポーネントタイプ: {}", ct),
         });
-            
+
         Video {
             r#type: mirakc_video.r#type,
             resolution: mirakc_video.resolution,
@@ -118,44 +121,40 @@ impl MirakcProgramsRetriever {
             component_type_name,
         }
     }
-    
+
     fn convert_audio(&self, mirakc_audio: MirakurunAudio) -> Audio {
-        let component_type_name = mirakc_audio.component_type.map(|ct| {
-            match ct {
-                0b00000 => "将来使用のためリザーブ".to_string(),
-                0b00001 => "1/0モード(シングルモノ)".to_string(),
-                0b00010 => "1/0 + 1/0モード(デュアルモノ)".to_string(),
-                0b00011 => "2/0モード(ステレオ)".to_string(),
-                0b00100 => "2/1モード".to_string(),
-                0b00101 => "3/0モード".to_string(),
-                0b00110 => "2/2モード".to_string(),
-                0b00111 => "3/1モード".to_string(),
-                0b01000 => "3/2モード".to_string(),
-                0b01001 => "3/2 + LFEモード(3/2.1モード)".to_string(),
-                0b01010 => "3/3.1モード".to_string(),
-                0b01011 => "2/0/0-2/0/2-0.1モード".to_string(),
-                0b01100 => "5/2.1モード".to_string(),
-                0b01101 => "3/2/2.1モード".to_string(),
-                0b01110 => "2/0/0-3/0/2-0.1モード".to_string(),
-                0b01111 => "0/2/0-3/0/2-0.1モード".to_string(),
-                0b10000 => "2/0/0-3/2/3-0.2モード".to_string(),
-                0b10001 => "3/3/3-5/2/3-3/0/0.2モード".to_string(),
-                _ => format!("不明なコンポーネントタイプ: {}", ct),
-            }
+        let component_type_name = mirakc_audio.component_type.map(|ct| match ct {
+            0b00000 => "将来使用のためリザーブ".to_string(),
+            0b00001 => "1/0モード(シングルモノ)".to_string(),
+            0b00010 => "1/0 + 1/0モード(デュアルモノ)".to_string(),
+            0b00011 => "2/0モード(ステレオ)".to_string(),
+            0b00100 => "2/1モード".to_string(),
+            0b00101 => "3/0モード".to_string(),
+            0b00110 => "2/2モード".to_string(),
+            0b00111 => "3/1モード".to_string(),
+            0b01000 => "3/2モード".to_string(),
+            0b01001 => "3/2 + LFEモード(3/2.1モード)".to_string(),
+            0b01010 => "3/3.1モード".to_string(),
+            0b01011 => "2/0/0-2/0/2-0.1モード".to_string(),
+            0b01100 => "5/2.1モード".to_string(),
+            0b01101 => "3/2/2.1モード".to_string(),
+            0b01110 => "2/0/0-3/0/2-0.1モード".to_string(),
+            0b01111 => "0/2/0-3/0/2-0.1モード".to_string(),
+            0b10000 => "2/0/0-3/2/3-0.2モード".to_string(),
+            0b10001 => "3/3/3-5/2/3-3/0/0.2モード".to_string(),
+            _ => format!("不明なコンポーネントタイプ: {}", ct),
         });
-            
-        let sampling_rate_name = mirakc_audio.sampling_rate.map(|sr| {
-            match sr {
-                16000 => "16kHz".to_string(),
-                22050 => "22.05kHz".to_string(),
-                24000 => "24kHz".to_string(),
-                32000 => "32kHz".to_string(),
-                44100 => "44.1kHz".to_string(),
-                48000 => "48kHz".to_string(),
-                _ => format!("{}Hz", sr),
-            }
+
+        let sampling_rate_name = mirakc_audio.sampling_rate.map(|sr| match sr {
+            16000 => "16kHz".to_string(),
+            22050 => "22.05kHz".to_string(),
+            24000 => "24kHz".to_string(),
+            32000 => "32kHz".to_string(),
+            44100 => "44.1kHz".to_string(),
+            48000 => "48kHz".to_string(),
+            _ => format!("{}Hz", sr),
         });
-            
+
         Audio {
             component_type: mirakc_audio.component_type,
             component_type_name,
@@ -165,7 +164,7 @@ impl MirakcProgramsRetriever {
             langs: mirakc_audio.langs,
         }
     }
-    
+
     fn convert_related_items(&self, mirakc_items: Vec<MirakurunRelatedItem>) -> Vec<RelatedItem> {
         mirakc_items
             .into_iter()
@@ -186,9 +185,9 @@ impl MirakcProgramsRetriever {
             Ok(service) => service.name,
             Err(_) => format!("Service {}", service_id),
         };
-        
+
         let programs_result = self.client.get_programs_by_service(service_id).await;
-        
+
         match programs_result {
             Ok(programs) => {
                 debug!("Converting {} programs", programs.len());
@@ -210,18 +209,14 @@ impl ProgramsRetriever for MirakcProgramsRetriever {
         #[cfg(test)]
         {
             use tokio::runtime::Handle;
-            
+
             if let Ok(handle) = Handle::try_current() {
-                return handle.block_on(async {
-                    self.get_programs_internal(service_id).await
-                });
+                return handle.block_on(async { self.get_programs_internal(service_id).await });
             }
         }
-        
+
         let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            self.get_programs_internal(service_id).await
-        })
+        rt.block_on(async { self.get_programs_internal(service_id).await })
     }
 }
 
@@ -233,55 +228,71 @@ mod tests {
     #[test]
     fn test_convert_genres() {
         let retriever = MirakcProgramsRetriever::new("http://dummy");
-        
+
         let mirakc_genres = vec![
-            MirakurunGenre { lv1: 0, lv2: 1, un1: 2, un2: 3 },
-            MirakurunGenre { lv1: 4, lv2: 5, un1: 6, un2: 7 },
+            MirakurunGenre {
+                lv1: 0,
+                lv2: 1,
+                un1: 2,
+                un2: 3,
+            },
+            MirakurunGenre {
+                lv1: 4,
+                lv2: 5,
+                un1: 6,
+                un2: 7,
+            },
         ];
-        
+
         let genres = retriever.convert_genres(mirakc_genres);
-        
+
         assert_eq!(genres.len(), 2);
         assert_eq!(genres[0].lv1, 0);
         assert_eq!(genres[0].lv2, 1);
         assert_eq!(genres[1].lv1, 4);
         assert_eq!(genres[1].lv2, 5);
     }
-    
+
     #[test]
     fn test_convert_video() {
         let retriever = MirakcProgramsRetriever::new("http://dummy");
-        
+
         let mirakc_video = MirakurunVideo {
             r#type: Some("mpeg2".to_string()),
             resolution: Some("1080i".to_string()),
             stream_content: Some(1),
             component_type: Some(0xb3),
         };
-        
+
         let video = retriever.convert_video(mirakc_video);
-        
+
         assert_eq!(video.r#type, Some("mpeg2".to_string()));
         assert_eq!(video.resolution, Some("1080i".to_string()));
         assert_eq!(video.component_type, Some(0xb3));
-        assert_eq!(video.component_type_name, Some("1080i(1125i), アスペクト比16:9 パンベクトルなし".to_string()));
+        assert_eq!(
+            video.component_type_name,
+            Some("1080i(1125i), アスペクト比16:9 パンベクトルなし".to_string())
+        );
     }
-    
+
     #[test]
     fn test_convert_audio() {
         let retriever = MirakcProgramsRetriever::new("http://dummy");
-        
+
         let mirakc_audio = MirakurunAudio {
             component_type: Some(3),
             is_main: Some(true),
             sampling_rate: Some(48000),
             langs: Some(vec!["jpn".to_string()]),
         };
-        
+
         let audio = retriever.convert_audio(mirakc_audio);
-        
+
         assert_eq!(audio.component_type, Some(3));
-        assert_eq!(audio.component_type_name, Some("2/0モード(ステレオ)".to_string()));
+        assert_eq!(
+            audio.component_type_name,
+            Some("2/0モード(ステレオ)".to_string())
+        );
         assert_eq!(audio.is_main, Some(true));
         assert_eq!(audio.sampling_rate, Some(48000));
         assert_eq!(audio.sampling_rate_name, Some("48kHz".to_string()));
@@ -292,29 +303,28 @@ mod tests {
 #[cfg(test)]
 mod mock_tests {
     use super::*;
+    use serde_json::json;
     use tokio::sync::oneshot;
     use warp::Filter;
     use warp::http::Response;
-    use serde_json::json;
 
     fn create_mock_server() -> (String, oneshot::Sender<()>) {
         let (tx, rx) = oneshot::channel();
-        
-        let service_route = warp::path!("services" / i64)
-            .map(|service_id: i64| {
-                let service = json!({
-                    "id": service_id,
-                    "serviceId": service_id,
-                    "networkId": 32736,
-                    "type": 1,
-                    "name": "テストチャンネル"
-                });
-                
-                Response::builder()
-                    .header("content-type", "application/json")
-                    .body(serde_json::to_string(&service).unwrap())
+
+        let service_route = warp::path!("services" / i64).map(|service_id: i64| {
+            let service = json!({
+                "id": service_id,
+                "serviceId": service_id,
+                "networkId": 32736,
+                "type": 1,
+                "name": "テストチャンネル"
             });
-        
+
+            Response::builder()
+                .header("content-type", "application/json")
+                .body(serde_json::to_string(&service).unwrap())
+        });
+
         let programs_route = warp::path!("services" / i64 / "programs")
             .map(|service_id: i64| {
                 let programs = vec![
@@ -364,21 +374,21 @@ mod mock_tests {
                         ]
                     })
                 ];
-                
+
                 Response::builder()
                     .header("content-type", "application/json")
                     .body(serde_json::to_string(&programs).unwrap())
             });
-        
+
         let routes = service_route.or(programs_route);
-        
+
         let (addr, server) =
             warp::serve(routes).bind_with_graceful_shutdown(([127, 0, 0, 1], 0), async {
                 rx.await.ok();
             });
-        
+
         tokio::spawn(server);
-        
+
         let url = format!("http://{}", addr);
         (url, tx)
     }
@@ -387,12 +397,12 @@ mod mock_tests {
     async fn test_get_programs_success() {
         let (url, tx) = create_mock_server();
         let retriever = MirakcProgramsRetriever::new(&url);
-        
+
         let programs = retriever.get_programs_internal(1).await;
-        
+
         assert_eq!(programs.len(), 1);
         let program = &programs[0];
-        
+
         assert_eq!(program.id, 323912360808478);
         assert_eq!(program.event_id, 8478);
         assert_eq!(program.service_id, 1);
@@ -401,52 +411,61 @@ mod mock_tests {
         assert_eq!(program.duration, 1800000);
         assert_eq!(program.end_at, program.start_at + program.duration);
         assert_eq!(program.is_free, true);
-        assert_eq!(program.name, Some("小林さんちのメイドラゴン　＃３[再]".to_string()));
-        assert_eq!(program.description, Some("＃３「新生活、はじまる！（もちろんうまくいきません）」".to_string()));
-        
+        assert_eq!(
+            program.name,
+            Some("小林さんちのメイドラゴン　＃３[再]".to_string())
+        );
+        assert_eq!(
+            program.description,
+            Some("＃３「新生活、はじまる！（もちろんうまくいきません）」".to_string())
+        );
+
         assert_eq!(program.channel.id, 1);
         assert_eq!(program.channel.name, "テストチャンネル");
-        
+
         assert_eq!(program.genres.len(), 1);
         assert_eq!(program.genres[0].lv1, 7);
         assert_eq!(program.genres[0].lv2, 0);
         assert_eq!(program.genre_names.len(), 1);
         assert_eq!(program.genre_names[0], "アニメ・特撮/国内アニメ");
-        
+
         assert!(program.extended.is_some());
         let extended = program.extended.as_ref().unwrap();
         assert_eq!(extended.len(), 2);
         assert!(extended.contains_key("あらすじ◇"));
         assert!(extended.contains_key("出演者"));
-        
+
         assert!(program.extended_description.is_some());
         let extended_desc = program.extended_description.as_ref().unwrap();
         assert!(extended_desc.contains("あらすじ◇："));
         assert!(extended_desc.contains("出演者："));
-        
+
         assert!(program.video.is_some());
         let video = program.video.as_ref().unwrap();
         assert_eq!(video.r#type, Some("mpeg2".to_string()));
         assert_eq!(video.resolution, Some("1080i".to_string()));
         assert_eq!(video.component_type, Some(179));
         assert!(video.component_type_name.is_some());
-        
+
         assert!(program.audio.is_some());
         let audio = program.audio.as_ref().unwrap();
         assert_eq!(audio.component_type, Some(3));
-        assert_eq!(audio.component_type_name, Some("2/0モード(ステレオ)".to_string()));
+        assert_eq!(
+            audio.component_type_name,
+            Some("2/0モード(ステレオ)".to_string())
+        );
         assert_eq!(audio.is_main, Some(true));
         assert_eq!(audio.sampling_rate, Some(48000));
         assert_eq!(audio.sampling_rate_name, Some("48kHz".to_string()));
         assert_eq!(audio.langs, Some(vec!["jpn".to_string()]));
-        
+
         assert!(program.related_items.is_some());
         let related_items = program.related_items.as_ref().unwrap();
         assert_eq!(related_items.len(), 1);
         assert_eq!(related_items[0].r#type, "shared");
         assert_eq!(related_items[0].service_id, 23608);
         assert_eq!(related_items[0].event_id, 8478);
-        
+
         let _ = tx.send(());
     }
 }
