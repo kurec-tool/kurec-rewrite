@@ -5,8 +5,6 @@ members = [
     "rust/libs/domain",
     "rust/libs/infra/mirakc",
     "rust/libs/infra/nats",
-    "rust/libs/infra/stream",
-    "rust/libs/test_util",
 ]
 
 [workspace.package]

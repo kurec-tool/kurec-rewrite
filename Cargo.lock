@@ -777,6 +777,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "heck"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
+
+[[package]]
 name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1334,10 +1340,10 @@ dependencies = [
  "eventsource-client",
  "futures",
  "reqwest",
- "test_util",
  "thiserror 2.0.12",
  "tokio",
  "tracing",
+ "tracing-subscriber",
  "warp",
 ]
 
@@ -1382,11 +1388,19 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "async-nats",
+ "bollard",
+ "domain",
+ "futures",
+ "heck",
+ "rand 0.9.1",
  "reqwest",
- "test_util",
+ "serde",
+ "serde_json",
+ "testcontainers",
  "thiserror 2.0.12",
  "tokio",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -2250,10 +2264,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
 
 [[package]]
-name = "stream"
-version = "0.0.1"
-
-[[package]]
 name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2351,21 +2361,6 @@ dependencies = [
  "once_cell",
  "rustix",
  "windows-sys 0.59.0",
-]
-
-[[package]]
-name = "test_util"
-version = "0.0.1"
-dependencies = [
- "anyhow",
- "bollard",
- "rand 0.9.1",
- "reqwest",
- "serde_json",
- "testcontainers",
- "tokio",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]

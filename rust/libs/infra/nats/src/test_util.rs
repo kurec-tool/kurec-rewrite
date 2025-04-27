@@ -11,6 +11,15 @@ use std::{collections::HashMap, time::Duration};
 use testcontainers::{ContainerAsync, GenericImage, ImageExt, core::WaitFor, runners::AsyncRunner};
 use tokio::time;
 use tracing::debug;
+use tracing_subscriber::{EnvFilter, fmt};
+
+/// テスト用のロギングを初期化
+pub fn init_test_logging() {
+    let _ = fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .with_test_writer()
+        .try_init();
+}
 
 pub const PROXY_NAME: &str = "nats-proxy";
 

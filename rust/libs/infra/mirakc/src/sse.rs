@@ -108,7 +108,7 @@ pub async fn get_mirakc_event_stream(
 }
 #[cfg(test)]
 mod tests {
-    use test_util::init_test_logging;
+    use crate::tests::init_test_logging;
 
     use super::*;
 
@@ -155,8 +155,9 @@ mod tests {
 
 #[cfg(test)]
 mod mock_tests {
+    use crate::tests::init_test_logging;
+
     use super::*;
-    use test_util::init_test_logging;
     use tokio::sync::oneshot;
     use warp::Filter;
 

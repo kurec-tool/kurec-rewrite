@@ -1,2 +1,2 @@
-mod event;
-pub use event::*;
+pub mod model;
+pub mod types;

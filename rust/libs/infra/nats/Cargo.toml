@@ -8,11 +8,19 @@ edition.workspace = true
 
 [dependencies]
 async-nats = "0.40.0"
+domain = { version = "0.1.0", path = "../../domain" }
+heck = "0.5.0"
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
 thiserror = "2.0.12"
 tracing = "0.1.41"
 
 [dev-dependencies]
 anyhow = "1.0.98"
+bollard = "0.18.1"
+futures = "0.3.31"
+rand = "0.9.1"
 reqwest = { version = "0.12.15", features = ["json"] }
-test_util = { path = "../../test_util" }
+testcontainers = "0.23.3"
 tokio = { version = "1.44.2", features = ["macros", "rt", "time", "process"] }
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
