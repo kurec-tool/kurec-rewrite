@@ -184,8 +184,9 @@ impl MirakcProgramsRetriever {
     }
 }
 
-impl MirakcProgramsRetriever {
-    async fn get_programs_internal(&self, service_id: i64) -> Vec<Program> {
+#[async_trait::async_trait]
+impl ProgramsRetriever for MirakcProgramsRetriever {
+    async fn get_programs(&self, service_id: i64) -> Vec<Program> {
         let service_result = self.client.get_service(service_id).await;
         let service_name = match service_result {
             Ok(service) => service.name,
@@ -207,22 +208,6 @@ impl MirakcProgramsRetriever {
                 Vec::new()
             }
         }
-    }
-}
-
-impl ProgramsRetriever for MirakcProgramsRetriever {
-    fn get_programs(&self, service_id: i64) -> Vec<Program> {
-        #[cfg(test)]
-        {
-            use tokio::runtime::Handle;
-
-            if let Ok(handle) = Handle::try_current() {
-                return handle.block_on(async { self.get_programs_internal(service_id).await });
-            }
-        }
-
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async { self.get_programs_internal(service_id).await })
     }
 }
 
@@ -404,7 +389,7 @@ mod mock_tests {
         let (url, tx) = create_mock_server();
         let retriever = MirakcProgramsRetriever::new(&url);
 
-        let programs = retriever.get_programs_internal(1).await;
+        let programs = retriever.get_programs(1).await;
 
         assert_eq!(programs.len(), 1);
         let program = &programs[0];

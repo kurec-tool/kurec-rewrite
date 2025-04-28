@@ -1,5 +1,6 @@
 use crate::model::program::Program;
 
+#[async_trait::async_trait]
 pub trait ProgramsRetriever {
-    fn get_programs(&self, service_id: i64) -> Vec<Program>;
+    async fn get_programs(&self, service_id: i64) -> Vec<Program>;
 }

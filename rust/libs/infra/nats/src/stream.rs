@@ -116,17 +116,21 @@ impl<E: Event> EventStore<E> {
     ) -> Result<impl EventReader<E>, NatsInfraError> {
         let subject = Self::get_subject();
         let js = self.nats_client.jetstream_context();
-        let stream = js
-            .get_or_create_stream(async_nats::jetstream::stream::Config {
-                name: "test-stream".to_string(),
-                subjects: vec![subject.clone()],
-                ..Default::default()
-            })
-            .await
-            .map_err(|e| NatsInfraError::StreamCreation {
-                stream_name: subject.clone(),
-                source: Box::new(e),
-            })?;
+        let stream_name =
+            js.stream_by_subject(&subject)
+                .await
+                .map_err(|e| NatsInfraError::StreamRetrieval {
+                    stream_name: subject.clone(),
+                    source: Box::new(e),
+                })?;
+
+        let stream =
+            js.get_stream(&stream_name)
+                .await
+                .map_err(|e| NatsInfraError::StreamRetrieval {
+                    stream_name: stream_name.clone(),
+                    source: Box::new(e),
+                })?;
 
         let consumer = stream
             .create_consumer(async_nats::jetstream::consumer::pull::Config {
@@ -189,7 +193,7 @@ mod tests {
         let js = event_stream.get_client().jetstream_context();
         let stream = js
             .get_or_create_stream(async_nats::jetstream::stream::Config {
-                name: "test-stream".to_string(),
+                name: "kurec".to_string(),
                 subjects: vec![TestEventStore::get_subject()],
                 ..Default::default()
             })
@@ -229,7 +233,7 @@ mod tests {
         let js = event_stream.get_client().jetstream_context();
         let _stream = js
             .get_or_create_stream(async_nats::jetstream::stream::Config {
-                name: "test-stream".to_string(),
+                name: "kurec".to_string(),
                 subjects: vec![TestEventStore::get_subject()],
                 ..Default::default()
             })
