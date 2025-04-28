@@ -38,7 +38,7 @@ impl MirakcApiClient {
         &self,
         service_id: i64,
     ) -> Result<Vec<MirakurunProgram>, MirakcApiError> {
-        let url = format!("{}/services/{}/programs", self.base_url, service_id);
+        let url = format!("{}/api/services/{}/programs", self.base_url, service_id);
         debug!("Fetching programs from: {}", url);
 
         let response = self.client.get(&url).send().await?;
@@ -64,7 +64,7 @@ impl MirakcApiClient {
     }
 
     pub async fn get_service(&self, service_id: i64) -> Result<MirakurunService, MirakcApiError> {
-        let url = format!("{}/services/{}", self.base_url, service_id);
+        let url = format!("{}/api/services/{}", self.base_url, service_id);
         debug!("Fetching service from: {}", url);
 
         let response = self.client.get(&url).send().await?;
@@ -190,7 +190,7 @@ mod tests {
     fn create_mock_server() -> (String, oneshot::Sender<()>) {
         let (tx, rx) = oneshot::channel();
 
-        let service_route = warp::path!("services" / i64).map(|service_id: i64| {
+        let service_route = warp::path!("api" / "services" / i64).map(|service_id: i64| {
             if service_id == 1 || service_id == 23608 {
                 let service = json!({
                     "id": service_id,
@@ -210,7 +210,7 @@ mod tests {
             }
         });
 
-        let programs_route = warp::path!("services" / i64 / "programs").map(|service_id: i64| {
+        let programs_route = warp::path!("api" / "services" / i64 / "programs").map(|service_id: i64| {
             let programs = vec![json!({
                 "id": 1,
                 "eventId": 1001,

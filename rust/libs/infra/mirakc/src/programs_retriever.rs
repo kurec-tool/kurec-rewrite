@@ -314,7 +314,7 @@ mod mock_tests {
     fn create_mock_server() -> (String, oneshot::Sender<()>) {
         let (tx, rx) = oneshot::channel();
 
-        let service_route = warp::path!("services" / i64).map(|service_id: i64| {
+        let service_route = warp::path!("api" / "services" / i64).map(|service_id: i64| {
             let service = json!({
                 "id": service_id,
                 "serviceId": service_id,
@@ -328,7 +328,7 @@ mod mock_tests {
                 .body(serde_json::to_string(&service).unwrap())
         });
 
-        let programs_route = warp::path!("services" / i64 / "programs")
+        let programs_route = warp::path!("api" / "services" / i64 / "programs")
             .map(|service_id: i64| {
                 let programs = vec![
                     json!({

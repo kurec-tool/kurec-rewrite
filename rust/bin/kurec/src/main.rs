@@ -199,6 +199,7 @@ async fn process_epg_retriever(mirakc_url: &str, nats_url: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use domain::error::DomainError;
     use domain::model::event::recording::{epg, programs};
     use domain::model::program::{Channel, Genre, Program, ProgramIdentifiers, ProgramTiming};
     use domain::ports::ProgramsRetriever;
