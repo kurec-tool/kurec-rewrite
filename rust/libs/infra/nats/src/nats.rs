@@ -148,7 +148,7 @@ mod tests {
         init_test_logging();
 
         // NATS コンテナを起動
-        let mut toxi_proxy_nats_container = setup_toxi_proxy_nats().await?;
+        let toxi_proxy_nats_container = setup_toxi_proxy_nats().await?;
 
         time::sleep(Duration::from_secs(5)).await;
 

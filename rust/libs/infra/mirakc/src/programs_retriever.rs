@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use domain::{
-    model::program::{Audio, Channel, Genre, Program, RelatedItem, Video},
+    model::program::{
+        Audio, Channel, Genre, Program, ProgramIdentifiers, ProgramTiming, RelatedItem, Video,
+    },
     ports::ProgramsRetriever,
 };
 use tracing::{debug, error};
@@ -37,12 +39,16 @@ impl MirakcProgramsRetriever {
             .map(|items| self.convert_related_items(items));
 
         let mut program = Program::new(
-            mirakc_program.id,
-            mirakc_program.event_id,
-            mirakc_program.service_id,
-            mirakc_program.network_id,
-            mirakc_program.start_at,
-            mirakc_program.duration,
+            ProgramIdentifiers {
+                id: mirakc_program.id,
+                event_id: mirakc_program.event_id,
+                network_id: mirakc_program.network_id,
+                service_id: mirakc_program.service_id,
+            },
+            ProgramTiming {
+                start_at: mirakc_program.start_at,
+                duration: mirakc_program.duration,
+            },
             mirakc_program.is_free,
             mirakc_program.name.clone(),
             mirakc_program.description.clone(),

@@ -25,27 +25,23 @@ pub struct Program {
 
 impl Program {
     pub fn new(
-        id: i64,
-        event_id: i32,
-        service_id: i32,
-        network_id: i32,
-        start_at: i64,
-        duration: i64,
+        identifiers: ProgramIdentifiers,
+        timing: ProgramTiming,
         is_free: bool,
         name: Option<String>,
         description: Option<String>,
         genres: Vec<Genre>,
         channel: Channel,
     ) -> Self {
-        let end_at = start_at + duration;
+        let end_at = timing.start_at + timing.duration;
 
         Self {
-            id,
-            event_id,
-            service_id,
-            network_id,
-            start_at,
-            duration,
+            id: identifiers.id,
+            event_id: identifiers.event_id,
+            service_id: identifiers.service_id,
+            network_id: identifiers.network_id,
+            start_at: timing.start_at,
+            duration: timing.duration,
             end_at,
             is_free,
             name,
@@ -62,6 +58,20 @@ impl Program {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct ProgramIdentifiers {
+    pub id: i64,
+    pub event_id: i32,
+    pub service_id: i32,
+    pub network_id: i32,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProgramTiming {
+    pub start_at: i64,
+    pub duration: i64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Channel {
     pub id: i64,
@@ -74,8 +84,10 @@ pub struct Genre {
     pub lv2: u8,
 }
 
-impl Genre {
-    pub fn to_string(&self) -> String {
+use std::fmt;
+
+impl fmt::Display for Genre {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let genre_name = match self.lv1 {
             0 => "ニュース・報道",
             1 => "スポーツ",
@@ -218,9 +230,9 @@ impl Genre {
         };
 
         if !sub_genre_name.is_empty() {
-            format!("{}/{}", genre_name, sub_genre_name)
+            write!(f, "{}/{}", genre_name, sub_genre_name)
         } else {
-            genre_name.to_string()
+            write!(f, "{}", genre_name)
         }
     }
 }
@@ -305,13 +317,21 @@ mod tests {
 
     #[test]
     fn test_program_serialization() {
+        let identifiers = ProgramIdentifiers {
+            id: 1,
+            event_id: 1001,
+            service_id: 1,
+            network_id: 32736,
+        };
+
+        let timing = ProgramTiming {
+            start_at: 1619856000000,
+            duration: 1800000,
+        };
+
         let program = Program::new(
-            1,
-            1001,
-            1,
-            32736,
-            1619856000000,
-            1800000,
+            identifiers,
+            timing,
             true,
             Some("テスト番組".to_string()),
             Some("テスト番組の説明".to_string()),

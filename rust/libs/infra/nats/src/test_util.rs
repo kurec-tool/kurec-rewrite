@@ -4,10 +4,9 @@
 //! NATS クライアントをテストするためのユーティリティ関数を提供します。
 
 use anyhow::Result;
-use bollard::{Docker, network::CreateNetworkOptions};
 use reqwest::Client as HttpClient;
 use serde_json::json;
-use std::{collections::HashMap, time::Duration};
+use std::time::Duration;
 use testcontainers::{
     ContainerAsync, GenericImage, ImageExt,
     core::{Host, WaitFor},

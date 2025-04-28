@@ -179,7 +179,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_publish_event() {
-        let mut proxy_nats = setup_toxi_proxy_nats().await.unwrap();
+        let proxy_nats = setup_toxi_proxy_nats().await.unwrap();
 
         let nats_url = &proxy_nats.nats_url;
         let nats_client = connect_nats(nats_url).await.unwrap();
@@ -219,7 +219,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_reader() {
-        let mut proxy_nats = setup_toxi_proxy_nats().await.unwrap();
+        let proxy_nats = setup_toxi_proxy_nats().await.unwrap();
 
         let nats_url = &proxy_nats.nats_url;
         let nats_client = connect_nats(nats_url).await.unwrap();

@@ -32,7 +32,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_or_update_streams_success() {
-        let mut proxy_nats = setup_toxi_proxy_nats().await.unwrap();
+        let proxy_nats = setup_toxi_proxy_nats().await.unwrap();
         let nats_url = &proxy_nats.nats_url;
         let nats_client = connect_nats(nats_url).await.unwrap();
 
@@ -61,7 +61,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_or_update_streams_network_failure() {
-        let mut proxy_nats = setup_toxi_proxy_nats().await.unwrap();
+        let proxy_nats = setup_toxi_proxy_nats().await.unwrap();
         let nats_url = &proxy_nats.nats_url;
         let nats_client = connect_nats(nats_url).await.unwrap();
 
@@ -95,7 +95,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_or_update_streams_invalid_config() {
-        let mut proxy_nats = setup_toxi_proxy_nats().await.unwrap();
+        let proxy_nats = setup_toxi_proxy_nats().await.unwrap();
         let nats_url = &proxy_nats.nats_url;
         let nats_client = connect_nats(nats_url).await.unwrap();
 
