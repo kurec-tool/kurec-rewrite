@@ -43,4 +43,10 @@ pub enum NatsInfraError {
         message: Vec<u8>,
         source: serde_json::Error,
     },
+
+    #[error("メッセージの確認（ack）に失敗しました: {source}")]
+    MessageAck {
+        #[source]
+        source: async_nats::Error,
+    },
 }

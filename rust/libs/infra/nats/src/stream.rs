@@ -7,8 +7,23 @@ use tracing::debug;
 
 use crate::{error::NatsInfraError, nats::NatsClient};
 
+pub struct JsMessageAckHandle {
+    message: async_nats::jetstream::message::Message,
+}
+
+impl JsMessageAckHandle {
+    pub async fn ack(&mut self) -> Result<(), NatsInfraError> {
+        self.message
+            .ack()
+            .await
+            .map_err(|e| NatsInfraError::MessageAck { source: e })
+    }
+}
+
 pub trait EventReader<E: Event> {
-    fn next(&self) -> impl std::future::Future<Output = Result<E, NatsInfraError>> + Send;
+    fn next(
+        &self,
+    ) -> impl std::future::Future<Output = Result<(E, JsMessageAckHandle), NatsInfraError>> + Send;
 }
 
 pub struct EventStoreReader<E: Event> {
@@ -18,7 +33,7 @@ pub struct EventStoreReader<E: Event> {
 }
 
 impl<E: Event> EventReader<E> for EventStoreReader<E> {
-    async fn next(&self) -> Result<E, NatsInfraError> {
+    async fn next(&self) -> Result<(E, JsMessageAckHandle), NatsInfraError> {
         loop {
             let result = self
                 .consumer
@@ -42,7 +57,8 @@ impl<E: Event> EventReader<E> for EventStoreReader<E> {
                             source: e,
                         }
                     })?;
-                    return Ok(ev);
+                    let ack_handle = JsMessageAckHandle { message: msg };
+                    return Ok((ev, ack_handle));
                 }
                 Some(Err(e)) => {
                     return Err(NatsInfraError::StreamRetrieval {
@@ -248,7 +264,18 @@ mod tests {
 
         let durable_name = "test_consumer".to_string();
         let reader = event_stream.get_reader(durable_name.clone()).await.unwrap();
-        let ev = reader.next().await.unwrap();
+        let (ev, mut ack_handle) = reader.next().await.unwrap();
         assert_eq!(ev.data, event.data);
+        ack_handle.ack().await.unwrap();
+
+        let reader2 = event_stream.get_reader(durable_name.clone()).await.unwrap();
+
+        let event2 = TestEvent {
+            data: "test data 2".to_string(),
+        };
+        event_stream.publish_event(&event2).await.unwrap();
+
+        let (ev2, _) = reader2.next().await.unwrap();
+        assert_eq!(ev2.data, event2.data); // 2番目のイベントを受信
     }
 }
