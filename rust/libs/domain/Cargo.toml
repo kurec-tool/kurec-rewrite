@@ -6,3 +6,5 @@ edition = "2024"
 [dependencies]
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = { version = "1.0.126", features = ["preserve_order"] }
+async-trait = "0.1.88"
+thiserror = "2.0.12"
