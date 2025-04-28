@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use domain::{
+    error::DomainError,
     model::program::{
         Audio, Channel, Genre, Program, ProgramIdentifiers, ProgramTiming, RelatedItem, Video,
     },
@@ -9,8 +10,8 @@ use domain::{
 use tracing::{debug, error};
 
 use crate::http_client::{
-    MirakcApiClient, MirakurunAudio, MirakurunGenre, MirakurunProgram, MirakurunRelatedItem,
-    MirakurunVideo,
+    MirakcApiClient, MirakcApiError, MirakurunAudio, MirakurunGenre, MirakurunProgram,
+    MirakurunRelatedItem, MirakurunVideo,
 };
 
 #[derive(Clone)]
@@ -186,11 +187,19 @@ impl MirakcProgramsRetriever {
 
 #[async_trait::async_trait]
 impl ProgramsRetriever for MirakcProgramsRetriever {
-    async fn get_programs(&self, service_id: i64) -> Vec<Program> {
+    async fn get_programs(&self, service_id: i64) -> Result<Vec<Program>, DomainError> {
         let service_result = self.client.get_service(service_id).await;
         let service_name = match service_result {
             Ok(service) => service.name,
-            Err(_) => format!("Service {}", service_id),
+            Err(e) => {
+                if let MirakcApiError::ServiceNotFound(_) = e {
+                    return Err(DomainError::ServiceNotFound(service_id));
+                }
+                return Err(DomainError::ProgramsRetrievalError(format!(
+                    "サービス情報の取得に失敗: {}",
+                    e
+                )));
+            }
         };
 
         let programs_result = self.client.get_programs_by_service(service_id).await;
@@ -198,14 +207,17 @@ impl ProgramsRetriever for MirakcProgramsRetriever {
         match programs_result {
             Ok(programs) => {
                 debug!("Converting {} programs", programs.len());
-                programs
+                Ok(programs
                     .into_iter()
                     .map(|p| self.convert_program(p, &service_name))
-                    .collect()
+                    .collect())
             }
             Err(e) => {
                 error!("Failed to get programs: {:?}", e);
-                Vec::new()
+                Err(DomainError::ProgramsRetrievalError(format!(
+                    "プログラム情報の取得に失敗: {}",
+                    e
+                )))
             }
         }
     }
@@ -389,7 +401,7 @@ mod mock_tests {
         let (url, tx) = create_mock_server();
         let retriever = MirakcProgramsRetriever::new(&url);
 
-        let programs = retriever.get_programs(1).await;
+        let programs = retriever.get_programs(1).await.unwrap();
 
         assert_eq!(programs.len(), 1);
         let program = &programs[0];

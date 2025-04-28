@@ -162,24 +162,30 @@ async fn process_epg_retriever(mirakc_url: &str, nats_url: &str) {
             Ok(event) => {
                 debug!("EPG更新イベントを受信: service_id={}", event.service_id);
 
-                let programs = programs_retriever.get_programs(event.service_id).await;
-                debug!(
-                    "サービスID {} のプログラム {} 件を取得",
-                    event.service_id,
-                    programs.len()
-                );
+                match programs_retriever.get_programs(event.service_id).await {
+                    Ok(programs) => {
+                        debug!(
+                            "サービスID {} のプログラム {} 件を取得",
+                            event.service_id,
+                            programs.len()
+                        );
 
-                let programs_updated = programs::Updated {
-                    service_id: event.service_id,
-                    programs,
-                };
+                        let programs_updated = programs::Updated {
+                            service_id: event.service_id,
+                            programs,
+                        };
 
-                match programs_event_store.publish_event(&programs_updated).await {
-                    Ok(_) => debug!(
-                        "プログラム更新イベントを発行しました: service_id={}",
-                        event.service_id
-                    ),
-                    Err(e) => error!("プログラム更新イベントの発行に失敗: {:?}", e),
+                        match programs_event_store.publish_event(&programs_updated).await {
+                            Ok(_) => debug!(
+                                "プログラム更新イベントを発行しました: service_id={}",
+                                event.service_id
+                            ),
+                            Err(e) => error!("プログラム更新イベントの発行に失敗: {:?}", e),
+                        }
+                    }
+                    Err(e) => {
+                        error!("プログラム情報の取得に失敗: {:?}", e);
+                    }
                 }
             }
             Err(e) => {
@@ -205,11 +211,11 @@ mod tests {
 
     #[async_trait::async_trait]
     impl ProgramsRetriever for MockProgramsRetriever {
-        async fn get_programs(&self, service_id: i64) -> Vec<Program> {
+        async fn get_programs(&self, service_id: i64) -> Result<Vec<Program>, DomainError> {
             if service_id == self.service_id {
-                self.programs.clone()
+                Ok(self.programs.clone())
             } else {
-                Vec::new()
+                Err(DomainError::ServiceNotFound(service_id))
             }
         }
     }
@@ -289,7 +295,10 @@ mod tests {
 
         let epg_updated = epg::Updated { service_id };
 
-        let programs = mock_retriever.get_programs(epg_updated.service_id).await;
+        let programs = mock_retriever
+            .get_programs(epg_updated.service_id)
+            .await
+            .unwrap();
 
         let programs_updated = programs::Updated {
             service_id: epg_updated.service_id,
@@ -345,7 +354,7 @@ mod tests {
         // process_epg_retrieverの主要なロジックを再現
         let event = mock_reader.next().await.unwrap();
 
-        let programs = mock_retriever.get_programs(event.service_id).await;
+        let programs = mock_retriever.get_programs(event.service_id).await.unwrap();
 
         let programs_updated = programs::Updated {
             service_id: event.service_id,
