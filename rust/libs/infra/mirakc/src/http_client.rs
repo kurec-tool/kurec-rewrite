@@ -210,73 +210,74 @@ mod tests {
             }
         });
 
-        let programs_route = warp::path!("api" / "services" / i64 / "programs").map(|service_id: i64| {
-            let programs = vec![json!({
-                "id": 1,
-                "eventId": 1001,
-                "serviceId": service_id,
-                "networkId": 1,
-                "startAt": 1619856000000i64,
-                "duration": 1800000,
-                "isFree": true,
-                "name": "テスト番組1",
-                "description": "テスト番組の説明1",
-                "extended": {
-                    "概要": "テスト番組の概要です",
-                    "出演者": "テスト出演者1\nテスト出演者2"
-                },
-                "video": {
-                    "type": "mpeg2",
-                    "resolution": "1080i",
-                    "streamContent": 1,
-                    "componentType": 179
-                },
-                "audio": {
-                    "componentType": 3,
-                    "isMain": true,
-                    "samplingRate": 48000,
-                    "langs": [
-                        "jpn"
-                    ]
-                },
-                "audios": [
-                    {
+        let programs_route =
+            warp::path!("api" / "services" / i64 / "programs").map(|service_id: i64| {
+                let programs = vec![json!({
+                    "id": 1,
+                    "eventId": 1001,
+                    "serviceId": service_id,
+                    "networkId": 1,
+                    "startAt": 1619856000000i64,
+                    "duration": 1800000,
+                    "isFree": true,
+                    "name": "テスト番組1",
+                    "description": "テスト番組の説明1",
+                    "extended": {
+                        "概要": "テスト番組の概要です",
+                        "出演者": "テスト出演者1\nテスト出演者2"
+                    },
+                    "video": {
+                        "type": "mpeg2",
+                        "resolution": "1080i",
+                        "streamContent": 1,
+                        "componentType": 179
+                    },
+                    "audio": {
                         "componentType": 3,
                         "isMain": true,
                         "samplingRate": 48000,
                         "langs": [
                             "jpn"
                         ]
-                    }
-                ],
-                "genres": [
-                    {
-                        "lv1": 7,
-                        "lv2": 0,
-                        "un1": 15,
-                        "un2": 15
-                    }
-                ],
-                "relatedItems": [
-                    {
-                        "type": "shared",
-                        "networkId": null,
-                        "serviceId": 1,
-                        "eventId": 1001
                     },
-                    {
-                        "type": "shared",
-                        "networkId": null,
-                        "serviceId": 2,
-                        "eventId": 1001
-                    }
-                ]
-            })];
+                    "audios": [
+                        {
+                            "componentType": 3,
+                            "isMain": true,
+                            "samplingRate": 48000,
+                            "langs": [
+                                "jpn"
+                            ]
+                        }
+                    ],
+                    "genres": [
+                        {
+                            "lv1": 7,
+                            "lv2": 0,
+                            "un1": 15,
+                            "un2": 15
+                        }
+                    ],
+                    "relatedItems": [
+                        {
+                            "type": "shared",
+                            "networkId": null,
+                            "serviceId": 1,
+                            "eventId": 1001
+                        },
+                        {
+                            "type": "shared",
+                            "networkId": null,
+                            "serviceId": 2,
+                            "eventId": 1001
+                        }
+                    ]
+                })];
 
-            Response::builder()
-                .header("content-type", "application/json")
-                .body(serde_json::to_string(&programs).unwrap())
-        });
+                Response::builder()
+                    .header("content-type", "application/json")
+                    .body(serde_json::to_string(&programs).unwrap())
+            });
 
         let routes = service_route.or(programs_route);
 
