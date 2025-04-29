@@ -258,12 +258,9 @@ async fn process_ogp_url_extractor(nats_url: &str) {
         .await
         .unwrap();
 
-    let programs_kvs_repo = NatsKvRepository::<ProgramsData>::with_bucket_name(
-        nats_client.clone(),
-        "ProgramsData".to_string(),
-    )
-    .await
-    .unwrap();
+    let programs_kvs_repo = NatsKvRepository::<ProgramsData>::new(nats_client.clone())
+        .await
+        .unwrap();
 
     setup_kurec_streams(&nats_client).await.unwrap();
 
