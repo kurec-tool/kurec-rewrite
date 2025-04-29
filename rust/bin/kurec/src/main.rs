@@ -582,87 +582,93 @@ mod tests {
         assert_eq!(stored_programs[0].service_id, service_id_i32);
         assert_eq!(stored_programs[0].name, Some("テスト番組".to_string()));
     }
-}
-#[tokio::test]
-async fn test_ogp_url_extractor() {
-    let service_id = 1;
 
-    let mut program = Program::default();
-    program.id = 1;
+    #[tokio::test]
+    async fn test_ogp_url_extractor() {
+        let service_id = 1;
 
-    let mut extended = BTreeMap::new();
-    extended.insert(
-        "description".to_string(),
-        "これはテスト説明です。https://example.com に詳細があります。".to_string(),
-    );
-    extended.insert(
-        "info".to_string(),
-        "詳細は http://example.com/long/path/to/url/index.html?param=value#section を参照してください。".to_string(),
-    );
-    program.extended = Some(extended);
+        let mut program = Program::new(
+            ProgramIdentifiers {
+                id: 1,
+                event_id: 1234,
+                network_id: 5678,
+                service_id: 1,
+            },
+            ProgramTiming {
+                start_at: 1619856000000,
+                duration: 1800000,
+            },
+            true,
+            Some("テスト番組".to_string()),
+            Some("テスト説明".to_string()),
+            vec![Genre { lv1: 7, lv2: 0 }],
+            Channel {
+                id: 1,
+                name: "テストチャンネル".to_string(),
+            },
+        );
 
-    let programs_data = ProgramsData(vec![program]);
-    let versioned = Versioned {
-        revision: 1,
-        value: programs_data,
-    };
+        let mut extended = BTreeMap::new();
+        extended.insert(
+            "description".to_string(),
+            "これはテスト説明です。https://example.com に詳細があります。".to_string(),
+        );
+        extended.insert(
+            "info".to_string(),
+            "詳細は http://example.com/long/path/to/url/index.html?param=value#section を参照してください。".to_string(),
+        );
+        program.extended = Some(extended);
 
-    let mut kvs = MockKvRepository::<String, ProgramsData>::new();
-    kvs.get_result = Some(versioned);
+        let programs_data = ProgramsData(vec![program]);
+        let versioned = Versioned {
+            revision: 1,
+            value: programs_data,
+        };
 
-    let mut reader = MockEventReader::new();
-    let event = programs::Updated {
-        service_id,
-        mirakc_url: "http://mirakc:40772".to_string(),
-    };
-    reader.events = vec![event];
+        let kvs = MockKvRepository::<ProgramsData>::new();
+        kvs.data
+            .lock()
+            .unwrap()
+            .insert(service_id.to_string(), (1, versioned.value.clone()));
 
-    let mut store = MockEventStore::new();
+        let event = programs::Updated {
+            service_id,
+            mirakc_url: "http://mirakc:40772".to_string(),
+        };
+        let mut reader = MockEventReader::new(vec![event]);
 
-    let mut sub = reader
-        .subscribe("recording.programs.Updated".to_string())
-        .await
-        .unwrap();
+        let store = MockEventStore::<ogp::Request>::new();
 
-    if let Some(event) = sub.next().await {
-        if let programs::Updated { service_id, .. } = event {
-            let key = service_id.to_string();
-            if let Some(versioned) = kvs.get(key).await.unwrap() {
-                let programs_data = versioned.value;
-                let extractor = UrlExtractor::default();
+        // process_ogp_url_extractorの主要なロジックを再現
+        let event = reader.next().await.unwrap();
+        let key = event.service_id.to_string();
 
-                for program in &programs_data.0 {
-                    if let Some(extended) = &program.extended {
-                        for value in extended.values() {
-                            let urls = extractor.extract_urls(value);
+        if let Some(versioned) = kvs.get(key).await.unwrap() {
+            let programs_data = versioned.value;
+            let extractor = UrlExtractor::default();
 
-                            for url in urls {
-                                let ogp_event = ogp::Request { url };
-                                store.publish_event(&ogp_event).await.unwrap();
-                            }
+            for program in &programs_data.0 {
+                if let Some(extended) = &program.extended {
+                    for value in extended.values() {
+                        let urls = extractor.extract_urls(value);
+
+                        for url in urls {
+                            let ogp_event = ogp::Request { url };
+                            store.publish_event(&ogp_event).await.unwrap();
                         }
                     }
                 }
             }
         }
+
+        let published_events = store.get_published_events();
+        assert_eq!(published_events.len(), 2);
+
+        let urls: Vec<String> = published_events.iter().map(|e| e.url.clone()).collect();
+
+        assert!(urls.contains(&"https://example.com".to_string()));
+        assert!(urls.contains(
+            &"http://example.com/long/path/to/url/index.html?param=value#section".to_string()
+        ));
     }
-
-    assert_eq!(store.published_events.len(), 2);
-
-    let urls: Vec<String> = store
-        .published_events
-        .iter()
-        .map(|e| {
-            if let ogp::Request { url } = e {
-                url.clone()
-            } else {
-                panic!("Expected OgpRequest event");
-            }
-        })
-        .collect();
-
-    assert!(urls.contains(&"https://example.com".to_string()));
-    assert!(urls.contains(
-        &"http://example.com/long/path/to/url/index.html?param=value#section".to_string()
-    ));
 }
