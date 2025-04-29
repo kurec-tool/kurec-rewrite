@@ -322,8 +322,9 @@ async fn process_ogp_url_extractor(nats_url: &str) {
 
 async fn process_ogp_image_extractor(nats_url: &str) {
     use domain::model::event::ogp;
-    use reqwest::Client;
-    use webpage::HTML;
+    use domain::model::html_parser::OgpImageParser;
+    use domain::ports::HtmlFetcher;
+    use http::ReqwestHtmlFetcher;
 
     debug!("OGP画像抽出ワーカーを開始します...");
     let nats_client = connect_nats(nats_url).await.unwrap();
@@ -344,7 +345,7 @@ async fn process_ogp_image_extractor(nats_url: &str) {
         .await
         .unwrap();
 
-    let client = Client::new();
+    let html_fetcher = ReqwestHtmlFetcher::new();
 
     loop {
         match reader.next().await {
@@ -352,29 +353,22 @@ async fn process_ogp_image_extractor(nats_url: &str) {
                 let url = &event.url;
                 debug!("URL抽出イベントを受信: url={}", url);
 
-                match client.get(url).send().await {
-                    Ok(response) => {
-                        if let Ok(html_content) = response.text().await {
-                            match HTML::from_string(html_content, None) {
-                                Ok(html) => {
-                                    for image_obj in &html.opengraph.images {
-                                        debug!("Found OGP image URL: {}", image_obj.url);
-                                        let image_event = ogp::url::ImageRequest {
-                                            url: image_obj.url.clone(),
-                                        };
-                                        if let Err(e) =
-                                            image_request_store.publish_event(&image_event).await
-                                        {
-                                            error!("画像リクエストイベントの発行に失敗: {:?}", e);
-                                        }
+                match html_fetcher.fetch_html(url).await {
+                    Ok(html_content) => {
+                        match OgpImageParser::create_image_requests(&html_content) {
+                            Ok(image_requests) => {
+                                for image_request in image_requests {
+                                    debug!("Found OGP image URL: {}", image_request.url);
+                                    if let Err(e) =
+                                        image_request_store.publish_event(&image_request).await
+                                    {
+                                        error!("画像リクエストイベントの発行に失敗: {:?}", e);
                                     }
                                 }
-                                Err(e) => {
-                                    error!("HTMLの解析に失敗: {:?}", e);
-                                }
                             }
-                        } else {
-                            error!("レスポンスのテキスト取得に失敗");
+                            Err(e) => {
+                                error!("HTMLの解析に失敗: {:?}", e);
+                            }
                         }
                     }
                     Err(e) => {
@@ -762,30 +756,27 @@ mod tests {
 
     #[tokio::test]
     async fn test_ogp_image_extractor() {
-        use webpage::HTML;
+        use domain::model::html_parser::OgpImageParser;
 
         let html_content = r#"
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Test Page</title>
+            <meta property="og:image" content="https://example.com/image1.jpg" />
+            <meta property="og:image" content="https://example.com/image2.png" />
         </head>
         <body>
-            <img src="https://example.com/image1.jpg" />
-            <img src="https://example.com/image2.png" />
+            <p>Test content</p>
         </body>
         </html>
         "#;
 
-        let _html = HTML::from_string(html_content.to_string(), None).unwrap();
+        let image_requests = OgpImageParser::create_image_requests(html_content).unwrap();
 
-        let mut images = Vec::new();
-        images.push("https://example.com/image1.jpg".to_string());
-        images.push("https://example.com/image2.png".to_string());
-
-        assert_eq!(images.len(), 2);
-        assert!(images.contains(&"https://example.com/image1.jpg".to_string()));
-        assert!(images.contains(&"https://example.com/image2.png".to_string()));
+        assert_eq!(image_requests.len(), 2);
+        let image_urls: Vec<String> = image_requests.iter().map(|req| req.url.clone()).collect();
+        assert!(image_urls.contains(&"https://example.com/image1.jpg".to_string()));
+        assert!(image_urls.contains(&"https://example.com/image2.png".to_string()));
 
         let extract_request = ogp::url::ExtractRequest {
             url: "https://example.com".to_string(),
@@ -793,21 +784,18 @@ mod tests {
         let mut reader = MockEventReader::new(vec![extract_request]);
         let store = MockEventStore::<ogp::url::ImageRequest>::new();
 
-        // process_ogp_image_extractorの主要なロジックを部分的に再現（HTTPリクエスト部分を除く）
+        // process_ogp_image_extractorの主要なロジックを部分的に再現（HTMLフェッチ部分を除く）
         let _event = reader.next().await.unwrap();
 
-        for image_url in &images {
-            let image_event = ogp::url::ImageRequest {
-                url: image_url.clone(),
-            };
-            store.publish_event(&image_event).await.unwrap();
+        for image_request in &image_requests {
+            store.publish_event(image_request).await.unwrap();
         }
 
         let published_events = store.get_published_events();
         assert_eq!(published_events.len(), 2);
 
-        let image_urls: Vec<String> = published_events.iter().map(|e| e.url.clone()).collect();
-        assert!(image_urls.contains(&"https://example.com/image1.jpg".to_string()));
-        assert!(image_urls.contains(&"https://example.com/image2.png".to_string()));
+        let published_urls: Vec<String> = published_events.iter().map(|e| e.url.clone()).collect();
+        assert!(published_urls.contains(&"https://example.com/image1.jpg".to_string()));
+        assert!(published_urls.contains(&"https://example.com/image2.png".to_string()));
     }
 }

@@ -19,5 +19,5 @@ tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 async-trait = "0.1.88"
 bytes = "1.5.0"
-reqwest = { version = "0.11", features = ["json"] }
+http = { path = "../../libs/infra/http" }
 webpage = { version = "1.6", default-features = false }

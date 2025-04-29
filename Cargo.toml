@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "rust/bin/kurec",
     "rust/libs/domain",
+    "rust/libs/infra/http",
     "rust/libs/infra/mirakc",
     "rust/libs/infra/nats",
 ]
