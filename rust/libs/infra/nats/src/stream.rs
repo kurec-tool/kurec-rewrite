@@ -2,7 +2,7 @@ use std::any::type_name;
 
 use async_nats::jetstream::consumer::PullConsumer;
 use domain::types::Event;
-use futures::{StreamExt, TryStreamExt};
+use futures::StreamExt;
 use tracing::debug;
 
 use crate::{error::NatsInfraError, nats::NatsClient};
