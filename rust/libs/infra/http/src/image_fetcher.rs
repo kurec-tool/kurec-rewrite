@@ -47,9 +47,10 @@ mod tests {
     #[tokio::test]
     async fn test_fetch_image() {
         let mock_image_data = vec![1, 2, 3, 4, 5]; // テスト用の画像データ
+        let mock_image_data_clone = mock_image_data.clone();
 
         let image_route = warp::path!("test-image.jpg").map(move || {
-            let data = mock_image_data.clone();
+            let data = mock_image_data_clone.clone();
             warp::reply::with_header(data, "content-type", "image/jpeg")
         });
 

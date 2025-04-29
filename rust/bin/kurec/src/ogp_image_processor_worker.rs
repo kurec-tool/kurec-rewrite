@@ -1,10 +1,10 @@
 use domain::{
     model::event::ogp,
-    usecase::{OgpImageProcessorUseCase, OgpImageProcessorUseCaseImpl, WebpImageData},
+    usecase::{OgpImageProcessorUseCase, OgpImageProcessorUseCaseImpl},
 };
-use nats::stream::{EventReader, EventStore};
 use http::ReqwestImageFetcher;
 use nats::nats::NatsClient;
+use nats::stream::{EventReader, EventStore};
 use tracing::{debug, error, info};
 
 use crate::repositories::WebpImageDataRepository;
@@ -21,7 +21,7 @@ pub async fn process_ogp_image_processor(nats_client: NatsClient) {
         .unwrap();
 
     let image_fetcher = ReqwestImageFetcher::default();
-    let image_processor = domain::service::WebpImageProcessor::default();
+    let image_processor = domain::service::WebpImageProcessor;
 
     let usecase =
         OgpImageProcessorUseCaseImpl::new(image_fetcher, image_processor, webp_image_repository);

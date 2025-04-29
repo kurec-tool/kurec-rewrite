@@ -2,8 +2,7 @@ use crate::{
     error::DomainError,
     model::event::ogp::url::ImageRequest,
     ports::{ImageFetcher, ImageProcessor},
-    repository::{EventStore, KvRepository},
-    types::Event,
+    repository::KvRepository,
 };
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -19,9 +18,9 @@ impl From<Bytes> for WebpImageData {
     }
 }
 
-impl Into<Bytes> for WebpImageData {
-    fn into(self) -> Bytes {
-        self.0
+impl From<WebpImageData> for Bytes {
+    fn from(val: WebpImageData) -> Self {
+        val.0
     }
 }
 
@@ -121,7 +120,10 @@ mod tests {
     };
     use async_trait::async_trait;
     use bytes::Bytes;
-    use std::{collections::HashMap, sync::Mutex};
+    use std::{
+        collections::HashMap,
+        sync::{Arc, Mutex},
+    };
 
     struct MockImageFetcher {
         responses: HashMap<String, Result<Vec<u8>, ImageFetcherError>>,
@@ -186,14 +188,15 @@ mod tests {
         }
     }
 
+    #[derive(Clone)]
     struct MockKvRepository {
-        data: Mutex<HashMap<String, (u64, WebpImageData)>>,
+        data: Arc<Mutex<HashMap<String, (u64, WebpImageData)>>>,
     }
 
     impl MockKvRepository {
         fn new() -> Self {
             Self {
-                data: Mutex::new(HashMap::new()),
+                data: Arc::new(Mutex::new(HashMap::new())),
             }
         }
     }

@@ -1,16 +1,10 @@
 use crate::ports::{ImageProcessor, ImageProcessorError};
 use async_trait::async_trait;
-use image::{DynamicImage, GenericImageView, ImageBuffer, Rgba};
-use std::io::Cursor;
-use webp::{Encoder, WebPMemory};
+use image::GenericImageView;
+use webp::Encoder;
 
+#[derive(Default)]
 pub struct WebpImageProcessor;
-
-impl Default for WebpImageProcessor {
-    fn default() -> Self {
-        Self {}
-    }
-}
 
 #[async_trait]
 impl ImageProcessor for WebpImageProcessor {
@@ -45,6 +39,8 @@ impl ImageProcessor for WebpImageProcessor {
 
 #[cfg(test)]
 mod tests {
+    use std::io::Cursor;
+
     use super::*;
     use image::{ImageBuffer, Rgba};
 
@@ -60,7 +56,7 @@ mod tests {
 
         let mut png_data = Vec::new();
         let mut cursor = Cursor::new(&mut png_data);
-        img.write_to(&mut cursor, image::ImageOutputFormat::Png)
+        img.write_to(&mut cursor, image::ImageFormat::Png)
             .expect("Failed to write test image");
 
         let processor = WebpImageProcessor::default();

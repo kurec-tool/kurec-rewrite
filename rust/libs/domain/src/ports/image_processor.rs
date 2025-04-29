@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use thiserror::Error;
 
-#[derive(Debug, Error)]
+#[derive(Clone, Debug, Error)]
 pub enum ImageProcessorError {
     #[error("画像の処理に失敗: {0}")]
     ProcessError(String),

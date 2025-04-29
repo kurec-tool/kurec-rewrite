@@ -17,6 +17,7 @@ url = "2.5.0"
 webpage = { version = "1.6", default-features = false }
 webp = "0.3.0"
 image = "0.25.6"
+tracing = "0.1.41"
 
 [dev-dependencies]
 tokio = { version = "1.44.2", features = ["rt", "rt-multi-thread"] }
