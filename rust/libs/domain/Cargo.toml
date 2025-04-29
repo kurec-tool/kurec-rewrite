@@ -9,3 +9,5 @@ serde_json = { version = "1.0.126", features = ["preserve_order"] }
 async-trait = "0.1.88"
 thiserror = "2.0.12"
 bytes = "1.10.1"
+linkify = "0.10.0"
+url = "2.5.0"
