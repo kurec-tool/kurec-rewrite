@@ -18,7 +18,7 @@ where
     V: Into<Bytes> + From<Bytes> + Send + Sync + Clone + 'static,
 {
     fn bucket_name() -> String;
-    
+
     async fn new(nats_client: NatsClient) -> Result<Self, NatsInfraError>
     where
         Self: Sized;

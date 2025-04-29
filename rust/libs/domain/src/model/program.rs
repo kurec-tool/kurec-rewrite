@@ -312,7 +312,7 @@ pub struct RelatedItem {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProgramsData(pub Vec<Program>)
+pub struct ProgramsData(pub Vec<Program>);
 
 #[cfg(test)]
 mod tests {

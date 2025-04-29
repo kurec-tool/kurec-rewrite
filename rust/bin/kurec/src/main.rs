@@ -248,10 +248,9 @@ async fn process_ogp_url_extractor(nats_url: &str) {
     debug!("OGP URL抽出ワーカーを開始します...");
     let nats_client = connect_nats(nats_url).await.unwrap();
 
-    let programs_event_store =
-        EventStore::<programs::Updated>::new(nats_client.clone())
-            .await
-            .unwrap();
+    let programs_event_store = EventStore::<programs::Updated>::new(nats_client.clone())
+        .await
+        .unwrap();
     let ogp_event_store = EventStore::<ogp::Request>::new(nats_client.clone())
         .await
         .unwrap();
@@ -601,10 +600,10 @@ mod tests {
 #[tokio::test]
 async fn test_ogp_url_extractor() {
     let service_id = 1;
-    
+
     let mut program = Program::default();
     program.id = 1;
-    
+
     let mut extended = BTreeMap::new();
     extended.insert(
         "description".to_string(),
@@ -615,27 +614,30 @@ async fn test_ogp_url_extractor() {
         "詳細は http://example.com/long/path/to/url/index.html?param=value#section を参照してください。".to_string(),
     );
     program.extended = Some(extended);
-    
+
     let programs_data = ProgramsData(vec![program]);
     let versioned = Versioned {
         revision: 1,
         value: programs_data,
     };
-    
+
     let mut kvs = MockKvRepository::<String, ProgramsData>::new();
     kvs.get_result = Some(versioned);
-    
+
     let mut reader = MockEventReader::new();
     let event = programs::Updated {
         service_id,
         mirakc_url: "http://mirakc:40772".to_string(),
     };
     reader.events = vec![event];
-    
+
     let mut store = MockEventStore::new();
-    
-    let mut sub = reader.subscribe("recording.programs.Updated".to_string()).await.unwrap();
-    
+
+    let mut sub = reader
+        .subscribe("recording.programs.Updated".to_string())
+        .await
+        .unwrap();
+
     if let Some(event) = sub.next().await {
         if let programs::Updated { service_id, .. } = event {
             let key = service_id.to_string();
@@ -647,7 +649,7 @@ async fn test_ogp_url_extractor() {
                     if let Some(extended) = &program.extended {
                         for value in extended.values() {
                             let urls = extractor.extract_urls(value);
-                            
+
                             for url in urls {
                                 let ogp_event = ogp::Request { url };
                                 store.publish_event(&ogp_event).await.unwrap();
@@ -658,17 +660,23 @@ async fn test_ogp_url_extractor() {
             }
         }
     }
-    
+
     assert_eq!(store.published_events.len(), 2);
-    
-    let urls: Vec<String> = store.published_events.iter().map(|e| {
-        if let ogp::Request { url } = e {
-            url.clone()
-        } else {
-            panic!("Expected OgpRequest event");
-        }
-    }).collect();
-    
+
+    let urls: Vec<String> = store
+        .published_events
+        .iter()
+        .map(|e| {
+            if let ogp::Request { url } = e {
+                url.clone()
+            } else {
+                panic!("Expected OgpRequest event");
+            }
+        })
+        .collect();
+
     assert!(urls.contains(&"https://example.com".to_string()));
-    assert!(urls.contains(&"http://example.com/long/path/to/url/index.html?param=value#section".to_string()));
+    assert!(urls.contains(
+        &"http://example.com/long/path/to/url/index.html?param=value#section".to_string()
+    ));
 }

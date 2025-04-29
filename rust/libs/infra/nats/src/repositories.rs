@@ -18,26 +18,37 @@ impl NatsKvRepositoryTrait<String, ProgramsData> for ProgramsDataRepository {
     }
 
     async fn new(nats_client: NatsClient) -> Result<Self, NatsInfraError> {
-        let inner = NatsKvRepositoryImpl::with_bucket_name(
-            nats_client,
-            Self::bucket_name(),
-        ).await?;
-        
+        let inner =
+            NatsKvRepositoryImpl::with_bucket_name(nats_client, Self::bucket_name()).await?;
+
         Ok(Self { inner })
     }
 }
 
 #[async_trait]
 impl KvRepository<String, ProgramsData> for ProgramsDataRepository {
-    async fn put(&self, key: String, value: &ProgramsData) -> Result<(), domain::error::DomainError> {
+    async fn put(
+        &self,
+        key: String,
+        value: &ProgramsData,
+    ) -> Result<(), domain::error::DomainError> {
         self.inner.put(key, value).await
     }
 
-    async fn get(&self, key: String) -> Result<Option<domain::repository::Versioned<ProgramsData>>, domain::error::DomainError> {
+    async fn get(
+        &self,
+        key: String,
+    ) -> Result<Option<domain::repository::Versioned<ProgramsData>>, domain::error::DomainError>
+    {
         self.inner.get(key).await
     }
 
-    async fn update(&self, key: String, value: &ProgramsData, revision: u64) -> Result<(), domain::error::DomainError> {
+    async fn update(
+        &self,
+        key: String,
+        value: &ProgramsData,
+        revision: u64,
+    ) -> Result<(), domain::error::DomainError> {
         self.inner.update(key, value, revision).await
     }
 
@@ -59,27 +70,45 @@ macro_rules! define_repository {
                 $bucket_name.to_string()
             }
 
-            async fn new(nats_client: $crate::nats::NatsClient) -> Result<Self, $crate::error::NatsInfraError> {
+            async fn new(
+                nats_client: $crate::nats::NatsClient,
+            ) -> Result<Self, $crate::error::NatsInfraError> {
                 let inner = $crate::kvs::NatsKvRepositoryImpl::with_bucket_name(
                     nats_client,
                     Self::bucket_name(),
-                ).await?;
-                
+                )
+                .await?;
+
                 Ok(Self { inner })
             }
         }
 
         #[async_trait::async_trait]
         impl domain::repository::KvRepository<$key_type, $value_type> for $repo_name {
-            async fn put(&self, key: $key_type, value: &$value_type) -> Result<(), domain::error::DomainError> {
+            async fn put(
+                &self,
+                key: $key_type,
+                value: &$value_type,
+            ) -> Result<(), domain::error::DomainError> {
                 self.inner.put(key, value).await
             }
 
-            async fn get(&self, key: $key_type) -> Result<Option<domain::repository::Versioned<$value_type>>, domain::error::DomainError> {
+            async fn get(
+                &self,
+                key: $key_type,
+            ) -> Result<
+                Option<domain::repository::Versioned<$value_type>>,
+                domain::error::DomainError,
+            > {
                 self.inner.get(key).await
             }
 
-            async fn update(&self, key: $key_type, value: &$value_type, revision: u64) -> Result<(), domain::error::DomainError> {
+            async fn update(
+                &self,
+                key: $key_type,
+                value: &$value_type,
+                revision: u64,
+            ) -> Result<(), domain::error::DomainError> {
                 self.inner.update(key, value, revision).await
             }
 
