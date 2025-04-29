@@ -284,7 +284,9 @@ mod tests {
         assert!(result.is_some(), "値が正しく保存されていません");
 
         info!("値を削除します: key={}", key);
-        <NatsKvRepository as KvRepository<&str, Bytes>>::delete(&repo, key).await.unwrap();
+        <NatsKvRepository as KvRepository<&str, Bytes>>::delete(&repo, key)
+            .await
+            .unwrap();
 
         info!("削除後に待機します: {}秒", 3);
         sleep(Duration::from_secs(3)).await;
