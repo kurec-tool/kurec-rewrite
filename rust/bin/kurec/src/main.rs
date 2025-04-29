@@ -322,8 +322,8 @@ async fn process_ogp_url_extractor(nats_url: &str) {
 
 async fn process_ogp_image_extractor(nats_url: &str) {
     use domain::model::event::ogp;
-    use domain::service::OgpImageParser;
     use domain::ports::HtmlFetcher;
+    use domain::service::OgpImageParser;
     use http::ReqwestHtmlFetcher;
 
     debug!("OGP画像抽出ワーカーを開始します...");
