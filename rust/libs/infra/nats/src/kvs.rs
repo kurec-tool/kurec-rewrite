@@ -10,6 +10,7 @@ use tracing::{debug, error};
 use crate::{error::NatsInfraError, nats::NatsClient};
 
 pub struct NatsKvRepository {
+    #[allow(dead_code)]
     nats_client: NatsClient,
     bucket_name: String,
     kv_store: jetstream::kv::Store,
