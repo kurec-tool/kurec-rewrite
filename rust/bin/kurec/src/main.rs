@@ -88,15 +88,20 @@ async fn main() {
 async fn setup_kurec_streams(
     nats_client: &nats::nats::NatsClient,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let kurec_stream_config = StreamConfig {
-        name: "kurec".to_string(),
-        subjects: vec![
-            "recording.>".to_string(), // すべてのrecordingイベントをカバー
-        ],
-        ..Default::default()
-    };
-
-    let stream_configs = vec![kurec_stream_config];
+    let stream_configs = vec![
+        StreamConfig {
+            name: "kurec".to_string(),
+            subjects: vec![
+                "recording.>".to_string(), // すべてのrecordingイベントをカバー
+            ],
+            ..Default::default()
+        },
+        StreamConfig {
+            name: "kurec-ogp".to_string(),
+            subjects: vec!["ogp.>".to_string()],
+            ..Default::default()
+        },
+    ];
 
     create_or_update_streams(nats_client, &stream_configs).await?;
 
