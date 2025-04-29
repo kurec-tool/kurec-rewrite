@@ -12,13 +12,8 @@ pub struct ProgramsDataRepository {
 
 #[async_trait]
 impl NatsKvRepositoryTrait<String, ProgramsData> for ProgramsDataRepository {
-    fn bucket_name() -> String {
-        "programs_data".to_string()
-    }
-
     async fn new(nats_client: NatsClient) -> Result<Self, NatsInfraError> {
-        let inner =
-            NatsKvRepositoryImpl::with_bucket_name(nats_client, Self::bucket_name()).await?;
+        let inner = NatsKvRepositoryImpl::new(nats_client).await?;
 
         Ok(Self { inner })
     }
@@ -58,25 +53,17 @@ impl KvRepository<String, ProgramsData> for ProgramsDataRepository {
 
 #[macro_export]
 macro_rules! define_repository {
-    ($repo_name:ident, $key_type:ty, $value_type:ty, $bucket_name:expr) => {
+    ($repo_name:ident, $key_type:ty, $value_type:ty) => {
         pub struct $repo_name {
             inner: $crate::kvs::NatsKvRepositoryImpl<$key_type, $value_type>,
         }
 
         #[async_trait::async_trait]
         impl $crate::kvs::NatsKvRepositoryTrait<$key_type, $value_type> for $repo_name {
-            fn bucket_name() -> String {
-                $bucket_name.to_string()
-            }
-
             async fn new(
                 nats_client: $crate::nats::NatsClient,
             ) -> Result<Self, $crate::error::NatsInfraError> {
-                let inner = $crate::kvs::NatsKvRepositoryImpl::with_bucket_name(
-                    nats_client,
-                    Self::bucket_name(),
-                )
-                .await?;
+                let inner = $crate::kvs::NatsKvRepositoryImpl::new(nats_client).await?;
 
                 Ok(Self { inner })
             }
@@ -116,4 +103,47 @@ macro_rules! define_repository {
             }
         }
     };
+}
+
+#[cfg(test)]
+pub mod test {
+    use crate::error::NatsInfraError;
+    use crate::kvs::NatsKvRepositoryImpl;
+    use bytes::Bytes;
+
+    #[derive(Clone, Debug, PartialEq)]
+    pub struct TestData(pub Bytes);
+
+    impl From<Bytes> for TestData {
+        fn from(bytes: Bytes) -> Self {
+            TestData(bytes)
+        }
+    }
+
+    impl Into<Bytes> for TestData {
+        fn into(self) -> Bytes {
+            self.0
+        }
+    }
+
+    define_repository!(TestDataRepository, String, TestData);
+
+    impl TestDataRepository {
+        pub fn get_bucket_name(&self) -> &str {
+            &self.inner.bucket_name
+        }
+
+        pub async fn get_kv_store_status(
+            &self,
+        ) -> Result<async_nats::jetstream::kv::bucket::Status, crate::error::NatsInfraError>
+        {
+            self.inner
+                .kv_store
+                .status()
+                .await
+                .map_err(|e| crate::error::NatsInfraError::KvGet {
+                    source: Box::new(e),
+                })
+        }
+    }
 }
