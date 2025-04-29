@@ -1,9 +1,8 @@
 use std::vec;
 
-use bytes::Bytes;
 use clap::{Parser, Subcommand};
 use domain::model::event::recording::epg::Updated;
-use domain::model::program::{Program, ProgramsData};
+use domain::model::program::ProgramsData;
 use domain::ports::ProgramsRetriever;
 use domain::repository::KvRepository;
 use futures::StreamExt as _;
@@ -14,21 +13,8 @@ use nats::{
     stream::{EventReader, EventStore},
     stream_manager::{StreamConfig, create_or_update_streams},
 };
-use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 use tracing_subscriber::{EnvFilter, fmt};
-
-impl From<Bytes> for ProgramsData {
-    fn from(bytes: Bytes) -> Self {
-        serde_json::from_slice(&bytes).unwrap_or_else(|_| ProgramsData(Vec::new()))
-    }
-}
-
-impl From<ProgramsData> for Bytes {
-    fn from(data: ProgramsData) -> Self {
-        Bytes::from(serde_json::to_vec(&data).unwrap_or_default())
-    }
-}
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]

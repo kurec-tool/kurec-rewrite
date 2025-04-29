@@ -534,9 +534,11 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "bytes",
+ "linkify",
  "serde",
  "serde_json",
  "thiserror 2.0.12",
+ "url",
 ]
 
 [[package]]
@@ -1379,6 +1381,15 @@ dependencies = [
  "bitflags 2.9.0",
  "libc",
  "redox_syscall 0.5.11",
+]
+
+[[package]]
+name = "linkify"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1dfa36d52c581e9ec783a7ce2a5e0143da6237be5811a0b3153fedfdbe9f780"
+dependencies = [
+ "memchr",
 ]
 
 [[package]]

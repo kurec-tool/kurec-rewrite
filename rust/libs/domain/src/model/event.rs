@@ -23,4 +23,15 @@ pub mod recording {
         }
         impl Event for Updated {}
     }
+    pub mod ogp {
+        use serde::{Deserialize, Serialize};
+
+        use crate::types::Event;
+
+        #[derive(Clone, Debug, Serialize, Deserialize)]
+        pub struct Request {
+            pub url: String,
+        }
+        impl Event for Request {}
+    }
 }
