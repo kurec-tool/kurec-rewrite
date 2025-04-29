@@ -1,5 +1,6 @@
 use linkify::{LinkFinder, LinkKind};
 use std::collections::HashSet;
+use url::Url;
 
 pub struct UrlExtractor {
     excluded_domains: HashSet<String>,
@@ -29,7 +30,7 @@ impl UrlExtractor {
             .links(text)
             .filter_map(|link| {
                 let url = link.as_str().to_string();
-                if let Ok(url_parsed) = url::Url::parse(&url) {
+                if let Ok(url_parsed) = Url::parse(&url) {
                     if let Some(host) = url_parsed.host_str() {
                         if !self.is_excluded_domain(host) {
                             return Some(url);

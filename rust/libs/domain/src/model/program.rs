@@ -1,4 +1,6 @@
+use bytes::Bytes;
 use serde::{Deserialize, Serialize};
+use serde_json;
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -309,6 +311,21 @@ pub struct RelatedItem {
     pub network_id: Option<i32>,
     pub service_id: i32,
     pub event_id: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProgramsData(pub Vec<Program>);
+
+impl From<Bytes> for ProgramsData {
+    fn from(bytes: Bytes) -> Self {
+        serde_json::from_slice(&bytes).unwrap_or_else(|_| ProgramsData(Vec::new()))
+    }
+}
+
+impl From<ProgramsData> for Bytes {
+    fn from(data: ProgramsData) -> Self {
+        Bytes::from(serde_json::to_vec(&data).unwrap_or_default())
+    }
 }
 
 #[cfg(test)]

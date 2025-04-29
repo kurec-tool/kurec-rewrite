@@ -1,36 +1,20 @@
 use std::vec;
 
-use bytes::Bytes;
 use clap::{Parser, Subcommand};
 use domain::model::event::recording::epg::Updated;
-use domain::model::program::Program;
+use domain::model::program::ProgramsData;
 use domain::ports::ProgramsRetriever;
 use domain::repository::KvRepository;
 use futures::StreamExt as _;
 use mirakc::get_mirakc_event_stream;
 use nats::{
     nats::connect_nats,
+    repositories::ProgramsDataRepository,
     stream::{EventReader, EventStore},
     stream_manager::{StreamConfig, create_or_update_streams},
 };
-use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 use tracing_subscriber::{EnvFilter, fmt};
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct ProgramsData(Vec<Program>);
-
-impl From<Bytes> for ProgramsData {
-    fn from(bytes: Bytes) -> Self {
-        serde_json::from_slice(&bytes).unwrap_or_else(|_| ProgramsData(Vec::new()))
-    }
-}
-
-impl From<ProgramsData> for Bytes {
-    fn from(data: ProgramsData) -> Self {
-        Bytes::from(serde_json::to_vec(&data).unwrap_or_default())
-    }
-}
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -163,7 +147,7 @@ async fn process_events(mirakc_url: &str, nats_url: &str, retry_max: u32) {
 async fn process_epg_retriever(mirakc_url: &str, nats_url: &str) {
     use domain::model::event::recording::{epg, programs};
     use mirakc::MirakcProgramsRetriever;
-    use nats::kvs::NatsKvRepository;
+    use nats::kvs::NatsKvRepositoryTrait;
 
     debug!("EPGリトリーバーを開始します...");
     let nats_client = connect_nats(nats_url).await.unwrap();
@@ -175,7 +159,7 @@ async fn process_epg_retriever(mirakc_url: &str, nats_url: &str) {
         .await
         .unwrap();
 
-    let programs_kvs_repo = NatsKvRepository::<ProgramsData>::new(nats_client.clone())
+    let programs_kvs_repo = ProgramsDataRepository::new(nats_client.clone())
         .await
         .unwrap();
 
@@ -245,20 +229,19 @@ async fn process_epg_retriever(mirakc_url: &str, nats_url: &str) {
 async fn process_ogp_url_extractor(nats_url: &str) {
     use domain::model::event::recording::{ogp, programs};
     use domain::model::url_extractor::UrlExtractor;
-    use nats::kvs::NatsKvRepository;
+    use nats::kvs::NatsKvRepositoryTrait;
 
     debug!("OGP URL抽出ワーカーを開始します...");
     let nats_client = connect_nats(nats_url).await.unwrap();
 
-    let programs_event_store =
-        nats::stream::EventStore::<programs::Updated>::new(nats_client.clone())
-            .await
-            .unwrap();
-    let ogp_event_store = nats::stream::EventStore::<ogp::Request>::new(nats_client.clone())
+    let programs_event_store = EventStore::<programs::Updated>::new(nats_client.clone())
+        .await
+        .unwrap();
+    let ogp_event_store = EventStore::<ogp::Request>::new(nats_client.clone())
         .await
         .unwrap();
 
-    let programs_kvs_repo = NatsKvRepository::<ProgramsData>::new(nats_client.clone())
+    let programs_kvs_repo = ProgramsDataRepository::new(nats_client.clone())
         .await
         .unwrap();
 
@@ -323,16 +306,15 @@ async fn process_ogp_url_extractor(nats_url: &str) {
         }
     }
 }
-
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::collections::{BTreeMap, HashMap};
     use std::sync::{Arc, Mutex};
 
     use crate::ProgramsData;
     use bytes::Bytes;
     use domain::error::DomainError;
-    use domain::model::event::recording::{epg, programs};
+    use domain::model::event::recording::{epg, ogp, programs};
     use domain::model::program::{Channel, Genre, Program, ProgramIdentifiers, ProgramTiming};
     use domain::model::url_extractor::UrlExtractor;
     use domain::ports::ProgramsRetriever;
@@ -599,21 +581,16 @@ mod tests {
         assert_eq!(stored_programs[0].service_id, service_id_i32);
         assert_eq!(stored_programs[0].name, Some("テスト番組".to_string()));
     }
-
     #[tokio::test]
-    async fn test_process_ogp_url_extractor() {
-        use domain::model::event::recording::{ogp, programs};
-        use std::collections::BTreeMap;
-
+    async fn test_ogp_url_extractor() {
         let service_id = 1;
-        let service_id_i32 = service_id as i32;
 
-        let program = Program::new(
+        let mut program = Program::new(
             ProgramIdentifiers {
                 id: 1,
-                event_id: 1001,
-                service_id: service_id_i32,
-                network_id: 32736,
+                event_id: 1234,
+                network_id: 5678,
+                service_id: 1,
             },
             ProgramTiming {
                 start_at: 1619856000000,
@@ -621,44 +598,50 @@ mod tests {
             },
             true,
             Some("テスト番組".to_string()),
-            Some("テスト番組の説明".to_string()),
-            vec![],
+            Some("テスト説明".to_string()),
+            vec![Genre { lv1: 7, lv2: 0 }],
             Channel {
-                id: service_id,
+                id: 1,
                 name: "テストチャンネル".to_string(),
             },
         );
 
-        let mut program_with_extended = program.clone();
         let mut extended = BTreeMap::new();
         extended.insert(
             "description".to_string(),
             "これはテスト説明です。https://example.com に詳細があります。".to_string(),
         );
-        program_with_extended.extended = Some(extended);
+        extended.insert(
+            "info".to_string(),
+            "詳細は http://example.com/long/path/to/url/index.html?param=value#section を参照してください。".to_string(),
+        );
+        program.extended = Some(extended);
 
-        let programs_data = ProgramsData(vec![program_with_extended]);
+        let programs_data = ProgramsData(vec![program]);
+        let versioned = Versioned {
+            revision: 1,
+            value: programs_data,
+        };
 
         let kvs = MockKvRepository::<ProgramsData>::new();
         kvs.data
             .lock()
             .unwrap()
-            .insert(service_id.to_string(), (1, programs_data.clone()));
+            .insert(service_id.to_string(), (1, versioned.value.clone()));
 
-        let programs_updated = programs::Updated {
+        let event = programs::Updated {
             service_id,
-            mirakc_url: "http://example.com".to_string(),
+            mirakc_url: "http://mirakc:40772".to_string(),
         };
-
-        let mut reader = MockEventReader::new(vec![programs_updated]);
+        let mut reader = MockEventReader::new(vec![event]);
 
         let store = MockEventStore::<ogp::Request>::new();
 
+        // process_ogp_url_extractorの主要なロジックを再現
         let event = reader.next().await.unwrap();
+        let key = event.service_id.to_string();
 
-        let service_id = event.service_id;
-        let key = service_id.to_string();
-        if let Ok(Some(versioned)) = kvs.get(key).await {
+        if let Some(versioned) = kvs.get(key).await.unwrap() {
             let programs_data = versioned.value;
             let extractor = UrlExtractor::default();
 
@@ -677,7 +660,13 @@ mod tests {
         }
 
         let published_events = store.get_published_events();
-        assert_eq!(published_events.len(), 1);
-        assert_eq!(published_events[0].url, "https://example.com");
+        assert_eq!(published_events.len(), 2);
+
+        let urls: Vec<String> = published_events.iter().map(|e| e.url.clone()).collect();
+
+        assert!(urls.contains(&"https://example.com".to_string()));
+        assert!(urls.contains(
+            &"http://example.com/long/path/to/url/index.html?param=value#section".to_string()
+        ));
     }
 }
