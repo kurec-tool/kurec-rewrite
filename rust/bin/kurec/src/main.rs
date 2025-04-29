@@ -359,8 +359,12 @@ async fn process_ogp_image_extractor(nats_url: &str) {
                                 Ok(html) => {
                                     for image_obj in &html.opengraph.images {
                                         debug!("Found OGP image URL: {}", image_obj.url);
-                                        let image_event = ogp::url::ImageRequest { url: image_obj.url.clone() };
-                                        if let Err(e) = image_request_store.publish_event(&image_event).await {
+                                        let image_event = ogp::url::ImageRequest {
+                                            url: image_obj.url.clone(),
+                                        };
+                                        if let Err(e) =
+                                            image_request_store.publish_event(&image_event).await
+                                        {
                                             error!("画像リクエストイベントの発行に失敗: {:?}", e);
                                         }
                                     }
@@ -774,11 +778,11 @@ mod tests {
         "#;
 
         let _html = HTML::from_string(html_content.to_string(), None).unwrap();
-        
+
         let mut images = Vec::new();
         images.push("https://example.com/image1.jpg".to_string());
         images.push("https://example.com/image2.png".to_string());
-        
+
         assert_eq!(images.len(), 2);
         assert!(images.contains(&"https://example.com/image1.jpg".to_string()));
         assert!(images.contains(&"https://example.com/image2.png".to_string()));
@@ -791,9 +795,11 @@ mod tests {
 
         // process_ogp_image_extractorの主要なロジックを部分的に再現（HTTPリクエスト部分を除く）
         let _event = reader.next().await.unwrap();
-        
+
         for image_url in &images {
-            let image_event = ogp::url::ImageRequest { url: image_url.clone() };
+            let image_event = ogp::url::ImageRequest {
+                url: image_url.clone(),
+            };
             store.publish_event(&image_event).await.unwrap();
         }
 
