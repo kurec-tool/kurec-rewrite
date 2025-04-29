@@ -13,12 +13,12 @@ pub mod recording {
     pub mod programs {
         use serde::{Deserialize, Serialize};
 
-        use crate::{model::program::Program, types::Event};
+        use crate::types::Event;
 
         #[derive(Clone, Debug, Serialize, Deserialize)]
         pub struct Updated {
             pub service_id: i64,
-            pub programs: Vec<Program>,
+            pub mirakc_url: String,
         }
         impl Event for Updated {}
     }
