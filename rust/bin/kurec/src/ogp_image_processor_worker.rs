@@ -1,12 +1,13 @@
 use domain::{
     model::event::ogp,
-    ports::{ImageFetcher, ImageProcessor},
-    repository::{EventReader, EventStore, KvRepository},
     usecase::{OgpImageProcessorUseCase, OgpImageProcessorUseCaseImpl, WebpImageData},
 };
+use nats::stream::{EventReader, EventStore};
 use http::ReqwestImageFetcher;
-use nats::{nats::NatsClient, repositories::WebpImageDataRepository};
+use nats::nats::NatsClient;
 use tracing::{debug, error, info};
+
+use crate::repositories::WebpImageDataRepository;
 
 pub async fn process_ogp_image_processor(nats_client: NatsClient) {
     debug!("OGP画像処理ワーカーを開始します...");
@@ -22,11 +23,8 @@ pub async fn process_ogp_image_processor(nats_client: NatsClient) {
     let image_fetcher = ReqwestImageFetcher::default();
     let image_processor = domain::service::WebpImageProcessor::default();
 
-    let usecase = OgpImageProcessorUseCaseImpl::new(
-        image_fetcher,
-        image_processor,
-        webp_image_repository,
-    );
+    let usecase =
+        OgpImageProcessorUseCaseImpl::new(image_fetcher, image_processor, webp_image_repository);
 
     let reader = image_request_store
         .get_reader("ogp_image_processor".to_string())

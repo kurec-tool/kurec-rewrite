@@ -42,18 +42,22 @@ impl ImageFetcher for ReqwestImageFetcher {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mockito::{mock, server_url};
+    use warp::Filter;
 
     #[tokio::test]
     async fn test_fetch_image() {
         let mock_image_data = vec![1, 2, 3, 4, 5]; // テスト用の画像データ
-        let mock_server = mock("GET", "/test-image.jpg")
-            .with_status(200)
-            .with_header("content-type", "image/jpeg")
-            .with_body(&mock_image_data)
-            .create();
 
-        let url = format!("{}/test-image.jpg", server_url());
+        let image_route = warp::path!("test-image.jpg").map(move || {
+            let data = mock_image_data.clone();
+            warp::reply::with_header(data, "content-type", "image/jpeg")
+        });
+
+        let (addr, server) = warp::serve(image_route).bind_ephemeral(([127, 0, 0, 1], 0));
+
+        let server_handle = tokio::spawn(server);
+
+        let url = format!("http://127.0.0.1:{}/test-image.jpg", addr.port());
 
         let fetcher = ReqwestImageFetcher::default();
 
@@ -63,7 +67,7 @@ mod tests {
         let image_data = result.unwrap();
         assert_eq!(image_data, mock_image_data);
 
-        mock_server.assert();
+        server_handle.abort();
     }
 
     #[tokio::test]
@@ -77,8 +81,7 @@ mod tests {
         assert!(result.is_err());
         if let Err(e) = result {
             match e {
-                ImageFetcherError::FetchError(_) => {
-                }
+                ImageFetcherError::FetchError(_) => {}
             }
         }
     }

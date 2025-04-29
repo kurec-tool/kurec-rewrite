@@ -1,13 +1,10 @@
 use async_trait::async_trait;
 use domain::model::program::ProgramsData;
 use domain::repository::KvRepository;
-use domain::usecase::WebpImageData;
 
 use crate::error::NatsInfraError;
 use crate::kvs::{NatsKvRepositoryImpl, NatsKvRepositoryTrait};
 use crate::nats::NatsClient;
-
-define_repository!(WebpImageDataRepository, String, WebpImageData);
 
 pub struct ProgramsDataRepository {
     inner: NatsKvRepositoryImpl<String, ProgramsData>,
@@ -110,6 +107,7 @@ macro_rules! define_repository {
 
 #[cfg(test)]
 pub mod test {
+    use crate::define_repository;
     use crate::error::NatsInfraError;
     use crate::kvs::NatsKvRepositoryImpl;
     use bytes::Bytes;
