@@ -280,7 +280,7 @@ async fn process_ogp_url_extractor(nats_url: &str) {
                 let service_id = event.service_id;
                 debug!("プログラム更新イベントを受信: service_id={}", service_id);
 
-                let key = format!("programs.{}", service_id);
+                let key = service_id.to_string();
                 match programs_kvs_repo.get(key).await {
                     Ok(Some(versioned)) => {
                         let programs_data = versioned.value;
@@ -644,7 +644,7 @@ mod tests {
 
         let kvs = MockKvRepository::<ProgramsData>::new();
         kvs.data.lock().unwrap().insert(
-            format!("programs.{}", service_id),
+            service_id.to_string(),
             (1, programs_data.clone()),
         );
 
@@ -660,7 +660,7 @@ mod tests {
         let event = reader.next().await.unwrap();
 
         let service_id = event.service_id;
-        let key = format!("programs.{}", service_id);
+        let key = service_id.to_string();
         if let Ok(Some(versioned)) = kvs.get(key).await {
             let programs_data = versioned.value;
             let extractor = UrlExtractor::default();
