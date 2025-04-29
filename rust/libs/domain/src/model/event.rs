@@ -7,6 +7,7 @@ pub mod recording {
         #[derive(Clone, Debug, Serialize, Deserialize)]
         pub struct Updated {
             pub service_id: i64,
+            pub mirakc_url: String,
         }
         impl Event for Updated {}
     }

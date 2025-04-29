@@ -133,6 +133,7 @@ async fn process_events(mirakc_url: &str, nats_url: &str, retry_max: u32) {
                         debug!("Parsed event: {:?}", ev);
                         let domain_ev = Updated {
                             service_id: ev.service_id,
+                            mirakc_url: mirakc_url.to_string(),
                         };
                         event_store.publish_event(&domain_ev).await.unwrap();
                     }
@@ -375,6 +376,7 @@ mod tests {
     async fn test_epg_retriever_logic() {
         let service_id = 1;
         let service_id_i32 = service_id as i32; // i64からi32への変換
+        let mirakc_url = "http://example.com";
 
         let test_program = Program::new(
             ProgramIdentifiers {
@@ -402,7 +404,10 @@ mod tests {
             programs: vec![test_program.clone()],
         };
 
-        let epg_updated = epg::Updated { service_id };
+        let epg_updated = epg::Updated {
+            service_id,
+            mirakc_url: mirakc_url.to_string(),
+        };
 
         let programs = mock_retriever
             .get_programs(epg_updated.service_id)
@@ -457,7 +462,10 @@ mod tests {
             programs: vec![test_program.clone()],
         };
 
-        let epg_updated = epg::Updated { service_id };
+        let epg_updated = epg::Updated {
+            service_id,
+            mirakc_url: mirakc_url.to_string(),
+        };
 
         let mut mock_reader = MockEventReader::new(vec![epg_updated.clone()]);
 
