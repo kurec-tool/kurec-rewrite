@@ -20,7 +20,7 @@ impl UrlExtractor {
             "instagram.com".to_string(),
         ])
     }
-
+    
     pub fn extract_urls(&self, text: &str) -> Vec<String> {
         let mut finder = LinkFinder::new();
         finder.kinds(&[LinkKind::Url]);
@@ -81,5 +81,10 @@ mod tests {
         let urls = extractor.extract_urls(text);
         assert_eq!(urls.len(), 1);
         assert!(urls.contains(&"https://example.com".to_string()));
+
+        let text = "詳細は http://example.com/long/path/to/url/index.html?param=value#section を参照してください。";
+        let urls = extractor.extract_urls(text);
+        assert_eq!(urls.len(), 1);
+        assert!(urls.contains(&"http://example.com/long/path/to/url/index.html?param=value#section".to_string()));
     }
 }

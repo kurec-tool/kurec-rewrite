@@ -337,6 +337,7 @@ mod tests {
     use domain::error::DomainError;
     use domain::model::event::recording::{epg, programs};
     use domain::model::program::{Channel, Genre, Program, ProgramIdentifiers, ProgramTiming};
+    use domain::model::url_extractor::UrlExtractor;
     use domain::ports::ProgramsRetriever;
     use domain::repository::{KvRepository, Versioned};
 
@@ -605,7 +606,6 @@ mod tests {
     #[tokio::test]
     async fn test_process_ogp_url_extractor() {
         use domain::model::event::recording::{ogp, programs};
-        use domain::model::url_extractor::UrlExtractor;
         use std::collections::BTreeMap;
 
         let service_id = 1;
