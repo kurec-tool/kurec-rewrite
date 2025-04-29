@@ -1345,11 +1345,13 @@ name = "kurec"
 version = "0.0.1"
 dependencies = [
  "async-trait",
+ "bytes",
  "clap",
  "domain",
  "futures",
  "mirakc",
  "nats",
+ "serde",
  "serde_json",
  "tokio",
  "tracing",
