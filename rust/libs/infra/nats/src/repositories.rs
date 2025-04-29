@@ -107,6 +107,7 @@ macro_rules! define_repository {
 
 #[cfg(test)]
 pub mod test {
+    use crate::define_repository;
     use crate::error::NatsInfraError;
     use crate::kvs::NatsKvRepositoryImpl;
     use bytes::Bytes;

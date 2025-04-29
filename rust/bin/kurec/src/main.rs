@@ -16,6 +16,18 @@ use nats::{
 use tracing::{debug, error};
 use tracing_subscriber::{EnvFilter, fmt};
 
+mod ogp_image_processor_worker;
+mod repositories;
+
+async fn process_ogp_image_processor(nats_url: &str) {
+    debug!("OGP画像処理ワーカーを開始します...");
+    let nats_client = connect_nats(nats_url).await.unwrap();
+
+    setup_kurec_streams(&nats_client).await.unwrap();
+
+    ogp_image_processor_worker::process_ogp_image_processor(nats_client).await;
+}
+
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
@@ -59,6 +71,11 @@ enum Commands {
         #[arg(short, long, default_value = "nats:4222")]
         nats_url: String,
     },
+    OgpImageProcessor {
+        /// NATSサーバーのURL
+        #[arg(short, long, default_value = "nats:4222")]
+        nats_url: String,
+    },
 }
 
 #[tokio::main]
@@ -89,6 +106,9 @@ async fn main() {
         }
         Commands::OgpImageExtractor { nats_url } => {
             process_ogp_image_extractor(nats_url).await;
+        }
+        Commands::OgpImageProcessor { nats_url } => {
+            process_ogp_image_processor(nats_url).await;
         }
     }
 }

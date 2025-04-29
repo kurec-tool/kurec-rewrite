@@ -11,6 +11,9 @@ pub enum DomainError {
     #[error("サービス(ID={0})が見つかりません")]
     ServiceNotFound(i64),
 
+    #[error("画像処理エラー: {0}")]
+    ImageProcessingError(String),
+
     #[error("不明なエラー: {0}")]
     UnknownError(String),
 }

@@ -21,3 +21,4 @@ async-trait = "0.1.88"
 bytes = "1.5.0"
 http = { path = "../../libs/infra/http" }
 webpage = { version = "1.6", default-features = false }
+webp = "0.3.0"
