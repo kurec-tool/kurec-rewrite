@@ -10,7 +10,7 @@ edition.workspace = true
 async-nats = "0.40.0"
 async-trait = "0.1.77"
 bytes = "1.10.1"
-domain = { version = "0.1.0", path = "../../domain" }
+domain = { path = "../../domain" }
 futures = "0.3.31"
 heck = "0.5.0"
 serde = { version = "1.0.219", features = ["derive"] }
