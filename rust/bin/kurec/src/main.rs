@@ -306,7 +306,6 @@ async fn process_ogp_url_extractor(nats_url: &str) {
         }
     }
 }
-
 #[cfg(test)]
 mod tests {
     use std::collections::{BTreeMap, HashMap};
@@ -582,7 +581,6 @@ mod tests {
         assert_eq!(stored_programs[0].service_id, service_id_i32);
         assert_eq!(stored_programs[0].name, Some("テスト番組".to_string()));
     }
-
     #[tokio::test]
     async fn test_ogp_url_extractor() {
         let service_id = 1;
