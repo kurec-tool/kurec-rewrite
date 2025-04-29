@@ -29,6 +29,7 @@ where
     K: AsRef<str> + Send + Sync + 'static,
     V: Into<Bytes> + From<Bytes> + Send + Sync + Clone + 'static,
 {
+    #[allow(dead_code)]
     nats_client: NatsClient,
     bucket_name: String,
     kv_store: jetstream::kv::Store,
@@ -40,6 +41,7 @@ where
     K: AsRef<str> + Send + Sync + 'static,
     V: Into<Bytes> + From<Bytes> + Send + Sync + Clone + 'static,
 {
+    #[allow(dead_code)]
     fn generate_bucket_name<T: 'static>() -> String {
         let type_name = std::any::type_name::<T>();
         let type_parts: Vec<&str> = type_name.split("::").collect();
@@ -210,6 +212,7 @@ where
     _phantom: PhantomData<V>,
 }
 
+#[allow(deprecated)]
 impl<V> NatsKvRepository<V>
 where
     V: Into<Bytes> + From<Bytes> + Send + Sync + Clone + 'static,
@@ -278,6 +281,7 @@ where
 }
 
 #[async_trait]
+#[allow(deprecated)]
 impl<K, V> KvRepository<K, V> for NatsKvRepository<V>
 where
     K: AsRef<str> + Send + Sync + 'static,
