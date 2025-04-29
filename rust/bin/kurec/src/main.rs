@@ -54,6 +54,11 @@ enum Commands {
         #[arg(short, long, default_value = "nats:4222")]
         nats_url: String,
     },
+    OgpImageExtractor {
+        /// NATSサーバーのURL
+        #[arg(short, long, default_value = "nats:4222")]
+        nats_url: String,
+    },
 }
 
 #[tokio::main]
@@ -81,6 +86,9 @@ async fn main() {
         }
         Commands::OgpUrlExtractor { nats_url } => {
             process_ogp_url_extractor(nats_url).await;
+        }
+        Commands::OgpImageExtractor { nats_url } => {
+            process_ogp_image_extractor(nats_url).await;
         }
     }
 }
@@ -297,6 +305,74 @@ async fn process_ogp_url_extractor(nats_url: &str) {
                     }
                     Err(e) => {
                         error!("KVSからのプログラムデータ取得に失敗: {:?}", e);
+                    }
+                }
+
+                if let Err(e) = ack_handle.ack().await {
+                    error!("イベントの確認に失敗: {:?}", e);
+                }
+            }
+            Err(e) => {
+                error!("イベントの取得に失敗: {:?}", e);
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            }
+        }
+    }
+}
+
+async fn process_ogp_image_extractor(nats_url: &str) {
+    use domain::model::event::ogp;
+    use domain::ports::HtmlFetcher;
+    use domain::service::OgpImageParser;
+    use http::ReqwestHtmlFetcher;
+
+    debug!("OGP画像抽出ワーカーを開始します...");
+    let nats_client = connect_nats(nats_url).await.unwrap();
+
+    let extract_request_store = EventStore::<ogp::url::ExtractRequest>::new(nats_client.clone())
+        .await
+        .unwrap();
+    let image_request_store = EventStore::<ogp::url::ImageRequest>::new(nats_client.clone())
+        .await
+        .unwrap();
+
+    setup_kurec_streams(&nats_client).await.unwrap();
+
+    debug!("URL抽出イベント待機中...");
+
+    let reader = extract_request_store
+        .get_reader("ogp_image_extractor".to_string())
+        .await
+        .unwrap();
+
+    let html_fetcher = ReqwestHtmlFetcher::new();
+
+    loop {
+        match reader.next().await {
+            Ok((event, mut ack_handle)) => {
+                let url = &event.url;
+                debug!("URL抽出イベントを受信: url={}", url);
+
+                match html_fetcher.fetch_html(url).await {
+                    Ok(html_content) => {
+                        match OgpImageParser::create_image_requests(&html_content) {
+                            Ok(image_requests) => {
+                                for image_request in image_requests {
+                                    debug!("Found OGP image URL: {}", image_request.url);
+                                    if let Err(e) =
+                                        image_request_store.publish_event(&image_request).await
+                                    {
+                                        error!("画像リクエストイベントの発行に失敗: {:?}", e);
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                error!("HTMLの解析に失敗: {:?}", e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!("URLの取得に失敗: {:?}", e);
                     }
                 }
 
@@ -676,5 +752,50 @@ mod tests {
         assert!(urls.contains(
             &"http://example.com/long/path/to/url/index.html?param=value#section".to_string()
         ));
+    }
+
+    #[tokio::test]
+    async fn test_ogp_image_extractor() {
+        use domain::service::OgpImageParser;
+
+        let html_content = r#"
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta property="og:image" content="https://example.com/image1.jpg" />
+            <meta property="og:image" content="https://example.com/image2.png" />
+        </head>
+        <body>
+            <p>Test content</p>
+        </body>
+        </html>
+        "#;
+
+        let image_requests = OgpImageParser::create_image_requests(html_content).unwrap();
+
+        assert_eq!(image_requests.len(), 2);
+        let image_urls: Vec<String> = image_requests.iter().map(|req| req.url.clone()).collect();
+        assert!(image_urls.contains(&"https://example.com/image1.jpg".to_string()));
+        assert!(image_urls.contains(&"https://example.com/image2.png".to_string()));
+
+        let extract_request = ogp::url::ExtractRequest {
+            url: "https://example.com".to_string(),
+        };
+        let mut reader = MockEventReader::new(vec![extract_request]);
+        let store = MockEventStore::<ogp::url::ImageRequest>::new();
+
+        // process_ogp_image_extractorの主要なロジックを部分的に再現（HTMLフェッチ部分を除く）
+        let _event = reader.next().await.unwrap();
+
+        for image_request in &image_requests {
+            store.publish_event(image_request).await.unwrap();
+        }
+
+        let published_events = store.get_published_events();
+        assert_eq!(published_events.len(), 2);
+
+        let published_urls: Vec<String> = published_events.iter().map(|e| e.url.clone()).collect();
+        assert!(published_urls.contains(&"https://example.com/image1.jpg".to_string()));
+        assert!(published_urls.contains(&"https://example.com/image2.png".to_string()));
     }
 }
