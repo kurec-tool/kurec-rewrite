@@ -643,10 +643,10 @@ mod tests {
         let programs_data = ProgramsData(vec![program_with_extended]);
 
         let kvs = MockKvRepository::<ProgramsData>::new();
-        kvs.data.lock().unwrap().insert(
-            service_id.to_string(),
-            (1, programs_data.clone()),
-        );
+        kvs.data
+            .lock()
+            .unwrap()
+            .insert(service_id.to_string(), (1, programs_data.clone()));
 
         let programs_updated = programs::Updated {
             service_id,
