@@ -539,6 +539,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.12",
  "url",
+ "webpage",
 ]
 
 [[package]]
@@ -921,6 +922,18 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "http"
+version = "0.0.1"
+dependencies = [
+ "async-trait",
+ "domain",
+ "reqwest 0.11.27",
+ "thiserror 2.0.12",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -1388,9 +1401,9 @@ dependencies = [
  "clap",
  "domain",
  "futures",
+ "http 0.0.1",
  "mirakc",
  "nats",
- "reqwest 0.11.27",
  "serde",
  "serde_json",
  "tokio",
