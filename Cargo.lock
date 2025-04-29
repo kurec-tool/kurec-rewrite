@@ -533,6 +533,7 @@ name = "domain"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "bytes",
  "serde",
  "serde_json",
  "thiserror 2.0.12",
@@ -1510,6 +1511,7 @@ dependencies = [
  "async-nats",
  "async-trait",
  "bollard",
+ "bytes",
  "domain",
  "futures",
  "heck",
