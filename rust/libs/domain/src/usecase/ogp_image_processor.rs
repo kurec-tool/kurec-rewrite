@@ -92,7 +92,11 @@ where
         };
 
         let webp_image_data = WebpImageData(Bytes::from(webp_data));
-        match self.image_repository.put(key.clone(), &webp_image_data).await {
+        match self
+            .image_repository
+            .put(key.clone(), &webp_image_data)
+            .await
+        {
             Ok(_) => {
                 info!("WebP画像をKVSに保存しました: {}", key);
                 Ok(())
@@ -158,20 +162,27 @@ mod tests {
             }
         }
 
-        fn mock_response(&mut self, input: Vec<u8>, response: Result<Vec<u8>, ImageProcessorError>) {
+        fn mock_response(
+            &mut self,
+            input: Vec<u8>,
+            response: Result<Vec<u8>, ImageProcessorError>,
+        ) {
             self.responses.insert(input, response);
         }
     }
 
     #[async_trait]
     impl ImageProcessor for MockImageProcessor {
-        async fn process_image(&self, image_data: &[u8], _width: u32) -> Result<Vec<u8>, ImageProcessorError> {
-            self.responses
-                .get(image_data)
-                .cloned()
-                .unwrap_or(Err(ImageProcessorError::ProcessError(
+        async fn process_image(
+            &self,
+            image_data: &[u8],
+            _width: u32,
+        ) -> Result<Vec<u8>, ImageProcessorError> {
+            self.responses.get(image_data).cloned().unwrap_or(Err(
+                ImageProcessorError::ProcessError(
                     "モックレスポンスが設定されていません".to_string(),
-                )))
+                ),
+            ))
         }
     }
 
@@ -299,8 +310,7 @@ mod tests {
 
         assert!(result.is_err(), "エラーが発生しませんでした");
         match result {
-            Err(DomainError::ImageProcessingError(_)) => {
-            }
+            Err(DomainError::ImageProcessingError(_)) => {}
             _ => panic!("期待されるエラータイプではありません: {:?}", result),
         }
 
@@ -337,8 +347,7 @@ mod tests {
 
         assert!(result.is_err(), "エラーが発生しませんでした");
         match result {
-            Err(DomainError::ImageProcessingError(_)) => {
-            }
+            Err(DomainError::ImageProcessingError(_)) => {}
             _ => panic!("期待されるエラータイプではありません: {:?}", result),
         }
 
