@@ -2,6 +2,9 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum DomainError {
+    #[error("プログラム保存エラー: {0}")]
+    ProgramsStoreError(String),
+
     #[error("プログラム取得エラー: {0}")]
     ProgramsRetrievalError(String),
 
