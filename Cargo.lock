@@ -1511,6 +1511,7 @@ dependencies = [
  "async-nats",
  "async-trait",
  "bollard",
+ "bytes",
  "domain",
  "futures",
  "heck",

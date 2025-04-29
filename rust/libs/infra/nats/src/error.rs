@@ -10,7 +10,25 @@ pub enum NatsInfraError {
     #[error("KV ストア '{bucket_name}' の作成/取得に失敗しました: {source}")]
     KvStore {
         bucket_name: String,
-        source: async_nats::Error,
+        source: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
+
+    #[error("KVバケットから値の取得に失敗しました: {source}")]
+    KvGet {
+        #[source]
+        source: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
+
+    #[error("KVバケットでの値の更新に失敗しました: {source}")]
+    KvUpdate {
+        #[source]
+        source: Box<dyn std::error::Error + Send + Sync + 'static>,
+    },
+
+    #[error("KVバケットでの値の削除に失敗しました: {source}")]
+    KvDelete {
+        #[source]
+        source: Box<dyn std::error::Error + Send + Sync + 'static>,
     },
 
     #[error("JetStream ストリームの作成に失敗しました: {stream_name}: {source}")]
