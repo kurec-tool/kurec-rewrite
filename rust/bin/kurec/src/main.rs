@@ -4,8 +4,6 @@ use bytes::Bytes;
 use clap::{Parser, Subcommand};
 use domain::model::event::recording::epg::Updated;
 use domain::model::program::Program;
-#[allow(unused_imports)]
-use domain::model::url_extractor::UrlExtractor;
 use domain::ports::ProgramsRetriever;
 use domain::repository::KvRepository;
 use futures::StreamExt as _;
