@@ -5,19 +5,44 @@ use domain::{
     error::DomainError,
     repository::{KvRepository, Versioned},
 };
+use heck::ToSnakeCase;
+use std::marker::PhantomData;
 use tracing::{debug, error};
 
 use crate::{error::NatsInfraError, nats::NatsClient};
 
-pub struct NatsKvRepository {
+pub struct NatsKvRepository<V>
+where
+    V: Into<Bytes> + From<Bytes> + Send + Sync + Clone + 'static,
+{
     #[allow(dead_code)]
     nats_client: NatsClient,
     bucket_name: String,
     kv_store: jetstream::kv::Store,
+    _phantom: PhantomData<V>,
 }
 
-impl NatsKvRepository {
-    pub async fn new(nats_client: NatsClient, bucket_name: String) -> Result<Self, NatsInfraError> {
+impl<V> NatsKvRepository<V>
+where
+    V: Into<Bytes> + From<Bytes> + Send + Sync + Clone + 'static,
+{
+    fn generate_bucket_name() -> String {
+        let type_name = std::any::type_name::<V>();
+        let type_parts: Vec<&str> = type_name.split("::").collect();
+        let type_short_name = type_parts.last().unwrap_or(&type_name);
+
+        type_short_name.to_snake_case()
+    }
+
+    pub async fn new(nats_client: NatsClient) -> Result<Self, NatsInfraError> {
+        let bucket_name = Self::generate_bucket_name();
+        Self::with_bucket_name(nats_client, bucket_name).await
+    }
+
+    pub async fn with_bucket_name(
+        nats_client: NatsClient,
+        bucket_name: String,
+    ) -> Result<Self, NatsInfraError> {
         let js = nats_client.jetstream_context();
         let kv_store = match js.get_key_value(&bucket_name).await {
             Ok(store) => store,
@@ -37,6 +62,7 @@ impl NatsKvRepository {
             nats_client,
             bucket_name,
             kv_store,
+            _phantom: PhantomData,
         })
     }
 
@@ -64,7 +90,7 @@ impl NatsKvRepository {
 }
 
 #[async_trait]
-impl<K, V> KvRepository<K, V> for NatsKvRepository
+impl<K, V> KvRepository<K, V> for NatsKvRepository<V>
 where
     K: AsRef<str> + Send + Sync + 'static,
     V: Into<Bytes> + From<Bytes> + Send + Sync + Clone + 'static,
@@ -173,8 +199,39 @@ mod tests {
     use bytes::Bytes;
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    #[derive(Clone, Debug, PartialEq)]
+    struct TestData(Bytes);
+
+    impl From<Bytes> for TestData {
+        fn from(bytes: Bytes) -> Self {
+            TestData(bytes)
+        }
+    }
+
+    impl Into<Bytes> for TestData {
+        fn into(self) -> Bytes {
+            self.0
+        }
+    }
+
     #[tokio::test]
     async fn test_nats_kv_repository_create() {
+        let proxy_nats = setup_toxi_proxy_nats().await.unwrap();
+        let nats_client = connect_nats(&proxy_nats.nats_url).await.unwrap();
+
+        let repo = NatsKvRepository::<TestData>::new(nats_client)
+            .await
+            .unwrap();
+
+        assert_eq!(repo.bucket_name, "test_data");
+        assert_eq!(
+            repo.kv_store.status().await.unwrap().bucket(),
+            &repo.bucket_name
+        );
+    }
+
+    #[tokio::test]
+    async fn test_with_bucket_name() {
         let proxy_nats = setup_toxi_proxy_nats().await.unwrap();
         let nats_client = connect_nats(&proxy_nats.nats_url).await.unwrap();
 
@@ -184,9 +241,11 @@ mod tests {
             .as_secs();
         let bucket_name = format!("test_bucket_{}", timestamp);
 
-        let repo = NatsKvRepository::new(nats_client, bucket_name)
+        let repo = NatsKvRepository::<TestData>::with_bucket_name(nats_client, bucket_name.clone())
             .await
             .unwrap();
+
+        assert_eq!(repo.bucket_name, bucket_name);
         assert_eq!(
             repo.kv_store.status().await.unwrap().bucket(),
             &repo.bucket_name
@@ -198,25 +257,19 @@ mod tests {
         let proxy_nats = setup_toxi_proxy_nats().await.unwrap();
         let nats_client = connect_nats(&proxy_nats.nats_url).await.unwrap();
 
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        let bucket_name = format!("test_bucket_{}", timestamp);
-
-        let repo = NatsKvRepository::new(nats_client, bucket_name)
+        let repo = NatsKvRepository::<TestData>::new(nats_client)
             .await
             .unwrap();
 
         let key = "test_key";
-        let value = Bytes::from("test_value");
+        let value = TestData(Bytes::from("test_value"));
 
         repo.put(key, &value).await.unwrap();
 
-        let result: Option<Versioned<Bytes>> = repo.get(key).await.unwrap();
+        let result: Option<Versioned<TestData>> = repo.get(key).await.unwrap();
         assert!(result.is_some());
 
-        let versioned: Versioned<Bytes> = result.unwrap();
+        let versioned = result.unwrap();
         assert_eq!(versioned.value, value);
         assert_eq!(versioned.revision, 1); // 最初のリビジョンは1
     }
@@ -226,29 +279,23 @@ mod tests {
         let proxy_nats = setup_toxi_proxy_nats().await.unwrap();
         let nats_client = connect_nats(&proxy_nats.nats_url).await.unwrap();
 
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        let bucket_name = format!("test_bucket_{}", timestamp);
-
-        let repo = NatsKvRepository::new(nats_client, bucket_name)
+        let repo = NatsKvRepository::<TestData>::new(nats_client)
             .await
             .unwrap();
 
         let key = "test_key";
-        let value1 = Bytes::from("initial_value");
-        let value2 = Bytes::from("updated_value");
+        let value1 = TestData(Bytes::from("initial_value"));
+        let value2 = TestData(Bytes::from("updated_value"));
 
         repo.put(key, &value1).await.unwrap();
 
-        let result: Versioned<Bytes> = repo.get(key).await.unwrap().unwrap();
+        let result: Versioned<TestData> = repo.get(key).await.unwrap().unwrap();
         assert_eq!(result.value, value1);
         let revision = result.revision;
 
         repo.update(key, &value2, revision).await.unwrap();
 
-        let updated: Versioned<Bytes> = repo.get(key).await.unwrap().unwrap();
+        let updated: Versioned<TestData> = repo.get(key).await.unwrap().unwrap();
         assert_eq!(updated.value, value2);
         assert_eq!(updated.revision, revision + 1);
     }
@@ -264,28 +311,22 @@ mod tests {
         let proxy_nats = setup_toxi_proxy_nats().await.unwrap();
         let nats_client = connect_nats(&proxy_nats.nats_url).await.unwrap();
 
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        let bucket_name = format!("test_bucket_delete_{}", timestamp);
-
-        let repo = NatsKvRepository::new(nats_client, bucket_name)
+        let repo = NatsKvRepository::<TestData>::new(nats_client)
             .await
             .unwrap();
 
         let key = "test_key_delete";
-        let value = Bytes::from("test_value");
+        let value = TestData(Bytes::from("test_value"));
 
         info!("値を設定します: key={}", key);
         repo.put(key, &value).await.unwrap();
 
         info!("値が存在することを確認します: key={}", key);
-        let result: Option<Versioned<Bytes>> = repo.get(key).await.unwrap();
+        let result: Option<Versioned<TestData>> = repo.get(key).await.unwrap();
         assert!(result.is_some(), "値が正しく保存されていません");
 
         info!("値を削除します: key={}", key);
-        <NatsKvRepository as KvRepository<&str, Bytes>>::delete(&repo, key)
+        <NatsKvRepository<TestData> as KvRepository<&str, TestData>>::delete(&repo, key)
             .await
             .unwrap();
 
@@ -293,14 +334,13 @@ mod tests {
         sleep(Duration::from_secs(3)).await;
 
         info!("値が存在しないことを確認します: key={}", key);
-        let deleted: Option<Versioned<Bytes>> = repo.get(key).await.unwrap();
+        let deleted: Option<Versioned<TestData>> = repo.get(key).await.unwrap();
 
         if deleted.is_some() {
             let entry = deleted.unwrap();
             panic!(
                 "キーが削除されていません。revision={}, value={:?}",
-                entry.revision,
-                String::from_utf8_lossy(&entry.value.to_vec())
+                entry.revision, entry.value
             );
         }
     }
@@ -310,18 +350,12 @@ mod tests {
         let proxy_nats = setup_toxi_proxy_nats().await.unwrap();
         let nats_client = connect_nats(&proxy_nats.nats_url).await.unwrap();
 
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        let bucket_name = format!("test_bucket_{}", timestamp);
-
-        let repo = NatsKvRepository::new(nats_client, bucket_name)
+        let repo = NatsKvRepository::<TestData>::new(nats_client)
             .await
             .unwrap();
 
         let key = "non_existent_key";
-        let value = Bytes::from("test_value");
+        let value = TestData(Bytes::from("test_value"));
         let result = repo.update(key, &value, 1).await;
 
         assert!(result.is_err());
