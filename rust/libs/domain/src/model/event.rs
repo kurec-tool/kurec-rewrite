@@ -32,9 +32,15 @@ pub mod ogp {
         use crate::types::Event;
 
         #[derive(Clone, Debug, Serialize, Deserialize)]
-        pub struct Request {
+        pub struct ExtractRequest {
             pub url: String,
         }
-        impl Event for Request {}
+        impl Event for ExtractRequest {}
+
+        #[derive(Clone, Debug, Serialize, Deserialize)]
+        pub struct ImageRequest {
+            pub url: String,
+        }
+        impl Event for ImageRequest {}
     }
 }
