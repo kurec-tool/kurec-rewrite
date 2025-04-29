@@ -153,7 +153,6 @@ async fn process_events(mirakc_url: &str, nats_url: &str, retry_max: u32) {
 
 async fn process_epg_retriever(mirakc_url: &str, nats_url: &str) {
     use domain::model::event::recording::{epg, programs};
-    use domain::model::program::Program;
     use mirakc::MirakcProgramsRetriever;
     use nats::kvs::NatsKvRepository;
 
@@ -239,8 +238,8 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
 
-    use bytes::Bytes;
     use crate::ProgramsData;
+    use bytes::Bytes;
     use domain::error::DomainError;
     use domain::model::event::recording::{epg, programs};
     use domain::model::program::{Channel, Genre, Program, ProgramIdentifiers, ProgramTiming};
