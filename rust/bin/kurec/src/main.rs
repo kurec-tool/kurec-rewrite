@@ -227,7 +227,7 @@ async fn process_epg_retriever(mirakc_url: &str, nats_url: &str) {
 }
 
 async fn process_ogp_url_extractor(nats_url: &str) {
-    use domain::model::event::recording::{ogp, programs};
+    use domain::model::event::{ogp, recording::programs};
     use domain::model::url_extractor::UrlExtractor;
     use nats::kvs::NatsKvRepositoryTrait;
 
@@ -237,7 +237,7 @@ async fn process_ogp_url_extractor(nats_url: &str) {
     let programs_event_store = EventStore::<programs::Updated>::new(nats_client.clone())
         .await
         .unwrap();
-    let ogp_event_store = EventStore::<ogp::Request>::new(nats_client.clone())
+    let ogp_event_store = EventStore::<ogp::url::Request>::new(nats_client.clone())
         .await
         .unwrap();
 
@@ -273,7 +273,7 @@ async fn process_ogp_url_extractor(nats_url: &str) {
 
                                     for url in urls {
                                         debug!("Found URL from program {}: {}", program.id, url);
-                                        let ogp_event = ogp::Request { url };
+                                        let ogp_event = ogp::url::Request { url };
                                         if let Err(e) =
                                             ogp_event_store.publish_event(&ogp_event).await
                                         {
@@ -314,7 +314,10 @@ mod tests {
     use crate::ProgramsData;
     use bytes::Bytes;
     use domain::error::DomainError;
-    use domain::model::event::recording::{epg, ogp, programs};
+    use domain::model::event::{
+        ogp,
+        recording::{epg, programs},
+    };
     use domain::model::program::{Channel, Genre, Program, ProgramIdentifiers, ProgramTiming};
     use domain::model::url_extractor::UrlExtractor;
     use domain::ports::ProgramsRetriever;
@@ -635,7 +638,7 @@ mod tests {
         };
         let mut reader = MockEventReader::new(vec![event]);
 
-        let store = MockEventStore::<ogp::Request>::new();
+        let store = MockEventStore::<ogp::url::Request>::new();
 
         // process_ogp_url_extractorの主要なロジックを再現
         let event = reader.next().await.unwrap();
@@ -651,7 +654,7 @@ mod tests {
                         let urls = extractor.extract_urls(value);
 
                         for url in urls {
-                            let ogp_event = ogp::Request { url };
+                            let ogp_event = ogp::url::Request { url };
                             store.publish_event(&ogp_event).await.unwrap();
                         }
                     }

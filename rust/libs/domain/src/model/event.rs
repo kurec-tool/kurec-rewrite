@@ -23,7 +23,10 @@ pub mod recording {
         }
         impl Event for Updated {}
     }
-    pub mod ogp {
+}
+
+pub mod ogp {
+    pub mod url {
         use serde::{Deserialize, Serialize};
 
         use crate::types::Event;
