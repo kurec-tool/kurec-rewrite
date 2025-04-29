@@ -15,6 +15,12 @@ impl ReqwestHtmlFetcher {
     }
 }
 
+impl Default for ReqwestHtmlFetcher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl HtmlFetcher for ReqwestHtmlFetcher {
     async fn fetch_html(&self, url: &str) -> Result<String, HtmlFetcherError> {
