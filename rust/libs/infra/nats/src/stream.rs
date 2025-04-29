@@ -2,7 +2,7 @@ use std::any::type_name;
 
 use async_nats::jetstream::consumer::PullConsumer;
 use domain::types::Event;
-use futures::{StreamExt, TryStreamExt};
+use futures::StreamExt;
 use tracing::debug;
 
 use crate::{error::NatsInfraError, nats::NatsClient};
@@ -34,40 +34,65 @@ pub struct EventStoreReader<E: Event> {
 
 impl<E: Event> EventReader<E> for EventStoreReader<E> {
     async fn next(&self) -> Result<(E, JsMessageAckHandle), NatsInfraError> {
-        loop {
-            let result = self
-                .consumer
-                .fetch()
-                .max_messages(1)
+        debug!("メッセージを待機しています...");
+        let mut messages =
+            self.consumer
                 .messages()
                 .await
                 .map_err(|e| NatsInfraError::StreamRetrieval {
                     stream_name: "unknown".to_string(),
                     source: Box::new(e),
-                })?
-                .into_stream()
-                .next()
-                .await;
-            match result {
-                Some(Ok(msg)) => {
-                    let ev: E = serde_json::from_slice(&msg.payload).map_err(|e| {
-                        NatsInfraError::JsonDeserialize {
-                            subject: self.subject.clone(),
-                            message: msg.payload.clone().into(),
-                            source: e,
+                })?;
+
+        match messages.next().await {
+            Some(Ok(msg)) => {
+                let ev: E = serde_json::from_slice(&msg.payload).map_err(|e| {
+                    NatsInfraError::JsonDeserialize {
+                        subject: self.subject.clone(),
+                        message: msg.payload.clone().into(),
+                        source: e,
+                    }
+                })?;
+                let ack_handle = JsMessageAckHandle { message: msg };
+                Ok((ev, ack_handle))
+            }
+            Some(Err(e)) => Err(NatsInfraError::StreamRetrieval {
+                stream_name: "unknown".to_string(),
+                source: Box::new(e),
+            }),
+            None => {
+                debug!("メッセージストリームが終了しました。再接続します...");
+                loop {
+                    debug!("新しいメッセージストリームを取得します...");
+                    let mut new_messages = self.consumer.messages().await.map_err(|e| {
+                        NatsInfraError::StreamRetrieval {
+                            stream_name: "unknown".to_string(),
+                            source: Box::new(e),
                         }
                     })?;
-                    let ack_handle = JsMessageAckHandle { message: msg };
-                    return Ok((ev, ack_handle));
-                }
-                Some(Err(e)) => {
-                    return Err(NatsInfraError::StreamRetrieval {
-                        stream_name: "unknown".to_string(),
-                        source: e,
-                    });
-                }
-                None => {
-                    debug!("メッセージが届いていないので再試行します...")
+
+                    if let Some(result) = new_messages.next().await {
+                        match result {
+                            Ok(msg) => {
+                                let ev: E = serde_json::from_slice(&msg.payload).map_err(|e| {
+                                    NatsInfraError::JsonDeserialize {
+                                        subject: self.subject.clone(),
+                                        message: msg.payload.clone().into(),
+                                        source: e,
+                                    }
+                                })?;
+                                let ack_handle = JsMessageAckHandle { message: msg };
+                                return Ok((ev, ack_handle));
+                            }
+                            Err(e) => {
+                                return Err(NatsInfraError::StreamRetrieval {
+                                    stream_name: "unknown".to_string(),
+                                    source: Box::new(e),
+                                });
+                            }
+                        }
+                    }
+                    debug!("メッセージが取得できませんでした。再試行します...");
                 }
             }
         }
