@@ -311,6 +311,9 @@ pub struct RelatedItem {
     pub event_id: i32,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProgramsData(pub Vec<Program>)
+
 #[cfg(test)]
 mod tests {
     use super::*;

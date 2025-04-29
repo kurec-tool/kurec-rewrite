@@ -11,6 +11,194 @@ use tracing::{debug, error};
 
 use crate::{error::NatsInfraError, nats::NatsClient};
 
+#[async_trait]
+pub trait NatsKvRepositoryTrait<K, V>: KvRepository<K, V> + Send + Sync
+where
+    K: AsRef<str> + Send + Sync + 'static,
+    V: Into<Bytes> + From<Bytes> + Send + Sync + Clone + 'static,
+{
+    fn bucket_name() -> String;
+    
+    async fn new(nats_client: NatsClient) -> Result<Self, NatsInfraError>
+    where
+        Self: Sized;
+}
+
+pub struct NatsKvRepositoryImpl<K, V>
+where
+    K: AsRef<str> + Send + Sync + 'static,
+    V: Into<Bytes> + From<Bytes> + Send + Sync + Clone + 'static,
+{
+    nats_client: NatsClient,
+    bucket_name: String,
+    kv_store: jetstream::kv::Store,
+    _phantom: PhantomData<(K, V)>,
+}
+
+impl<K, V> NatsKvRepositoryImpl<K, V>
+where
+    K: AsRef<str> + Send + Sync + 'static,
+    V: Into<Bytes> + From<Bytes> + Send + Sync + Clone + 'static,
+{
+    fn generate_bucket_name<T: 'static>() -> String {
+        let type_name = std::any::type_name::<T>();
+        let type_parts: Vec<&str> = type_name.split("::").collect();
+        let type_short_name = type_parts.last().unwrap_or(&type_name);
+
+        type_short_name.to_snake_case()
+    }
+
+    pub async fn with_bucket_name(
+        nats_client: NatsClient,
+        bucket_name: String,
+    ) -> Result<Self, NatsInfraError> {
+        let js = nats_client.jetstream_context();
+        let kv_store = match js.get_key_value(&bucket_name).await {
+            Ok(store) => store,
+            Err(_) => js
+                .create_key_value(jetstream::kv::Config {
+                    bucket: bucket_name.clone(),
+                    ..Default::default()
+                })
+                .await
+                .map_err(|e| NatsInfraError::KvStore {
+                    bucket_name: bucket_name.clone(),
+                    source: Box::new(e),
+                })?,
+        };
+
+        Ok(Self {
+            nats_client,
+            bucket_name,
+            kv_store,
+            _phantom: PhantomData,
+        })
+    }
+
+    async fn get_from_kv(&self, key: &K) -> Result<Option<jetstream::kv::Entry>, NatsInfraError> {
+        match self.kv_store.entry(key.as_ref()).await {
+            Ok(Some(entry)) if entry.operation != jetstream::kv::Operation::Put => {
+                debug!(
+                    bucket = %self.bucket_name,
+                    key = %key.as_ref(),
+                    revision = %entry.revision,
+                    operation = ?entry.operation,
+                    "Operation::Putではないエントリを削除済みとして扱います"
+                );
+                Ok(None)
+            }
+            Ok(entry) => Ok(entry),
+            Err(e) => Err(NatsInfraError::KvGet {
+                source: Box::new(e),
+            }),
+        }
+    }
+}
+
+#[async_trait]
+impl<K, V> KvRepository<K, V> for NatsKvRepositoryImpl<K, V>
+where
+    K: AsRef<str> + Send + Sync + 'static,
+    V: Into<Bytes> + From<Bytes> + Send + Sync + Clone + 'static,
+{
+    async fn put(&self, key: K, value: &V) -> Result<(), DomainError> {
+        let value_clone = value.clone().into();
+        debug!(
+            bucket = %self.bucket_name,
+            key = %key.as_ref(),
+            "KVバケットに値を保存します"
+        );
+        self.kv_store
+            .put(key.as_ref(), value_clone)
+            .await
+            .map_err(|e| {
+                error!(
+                    bucket = %self.bucket_name,
+                    key = %key.as_ref(),
+                    error = %e,
+                    "KVバケットへの値の保存に失敗しました"
+                );
+                DomainError::ProgramsStoreError(format!("KVSへの保存エラー: {}", e))
+            })?;
+        Ok(())
+    }
+
+    async fn get(&self, key: K) -> Result<Option<Versioned<V>>, DomainError> {
+        debug!(
+            bucket = %self.bucket_name,
+            key = %key.as_ref(),
+            "KVバケットから値を取得します"
+        );
+        let entry = match self.get_from_kv(&key).await {
+            Ok(Some(entry)) => entry,
+            Ok(None) => return Ok(None),
+            Err(e) => {
+                error!(
+                    bucket = %self.bucket_name,
+                    key = %key.as_ref(),
+                    error = %e,
+                    "KVバケットからの値の取得に失敗しました"
+                );
+                return Err(DomainError::ProgramsRetrievalError(format!(
+                    "KVSからの取得エラー: {}",
+                    e
+                )));
+            }
+        };
+
+        let bytes_value = entry.value;
+        let value: V = V::from(bytes_value);
+        let versioned = Versioned {
+            revision: entry.revision,
+            value,
+        };
+        Ok(Some(versioned))
+    }
+
+    async fn update(&self, key: K, value: &V, revision: u64) -> Result<(), DomainError> {
+        let value_clone = value.clone().into();
+        debug!(
+            bucket = %self.bucket_name,
+            key = %key.as_ref(),
+            revision = %revision,
+            "KVバケットの値を更新します"
+        );
+        self.kv_store
+            .update(key.as_ref(), value_clone, revision)
+            .await
+            .map_err(|e| {
+                error!(
+                    bucket = %self.bucket_name,
+                    key = %key.as_ref(),
+                    revision = %revision,
+                    error = %e,
+                    "KVバケットの値の更新に失敗しました"
+                );
+                DomainError::ProgramsStoreError(format!("KVSの更新エラー: {}", e))
+            })?;
+        Ok(())
+    }
+
+    async fn delete(&self, key: K) -> Result<(), DomainError> {
+        debug!(
+            bucket = %self.bucket_name,
+            key = %key.as_ref(),
+            "KVバケットから値を削除します"
+        );
+        self.kv_store.delete(key.as_ref()).await.map_err(|e| {
+            error!(
+                bucket = %self.bucket_name,
+                key = %key.as_ref(),
+                error = %e,
+                "KVバケットからの値の削除に失敗しました"
+            );
+            DomainError::ProgramsStoreError(format!("KVSの削除エラー: {}", e))
+        })?;
+        Ok(())
+    }
+}
+
+#[deprecated(note = "Use NatsKvRepositoryImpl with a specific repository type instead")]
 pub struct NatsKvRepository<V>
 where
     V: Into<Bytes> + From<Bytes> + Send + Sync + Clone + 'static,

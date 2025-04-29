@@ -1,6 +1,7 @@
 pub mod error;
 pub mod kvs;
 pub mod nats;
+pub mod repositories;
 pub mod stream;
 pub mod stream_manager;
 
