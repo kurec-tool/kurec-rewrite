@@ -1,8 +1,11 @@
 use std::vec;
 
+use bytes::Bytes;
 use clap::{Parser, Subcommand};
 use domain::model::event::recording::epg::Updated;
+use domain::model::program::Program;
 use domain::ports::ProgramsRetriever;
+use domain::repository::KvRepository;
 use futures::StreamExt as _;
 use mirakc::get_mirakc_event_stream;
 use nats::{
@@ -10,8 +13,24 @@ use nats::{
     stream::{EventReader, EventStore},
     stream_manager::{StreamConfig, create_or_update_streams},
 };
+use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 use tracing_subscriber::{EnvFilter, fmt};
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct ProgramsData(Vec<Program>);
+
+impl From<Bytes> for ProgramsData {
+    fn from(bytes: Bytes) -> Self {
+        serde_json::from_slice(&bytes).unwrap_or_else(|_| ProgramsData(Vec::new()))
+    }
+}
+
+impl From<ProgramsData> for Bytes {
+    fn from(data: ProgramsData) -> Self {
+        Bytes::from(serde_json::to_vec(&data).unwrap_or_default())
+    }
+}
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -135,6 +154,7 @@ async fn process_events(mirakc_url: &str, nats_url: &str, retry_max: u32) {
 async fn process_epg_retriever(mirakc_url: &str, nats_url: &str) {
     use domain::model::event::recording::{epg, programs};
     use mirakc::MirakcProgramsRetriever;
+    use nats::kvs::NatsKvRepository;
 
     debug!("EPGリトリーバーを開始します...");
     let nats_client = connect_nats(nats_url).await.unwrap();
@@ -143,6 +163,10 @@ async fn process_epg_retriever(mirakc_url: &str, nats_url: &str) {
         .await
         .unwrap();
     let programs_event_store = EventStore::<programs::Updated>::new(nats_client.clone())
+        .await
+        .unwrap();
+
+    let programs_kvs_repo = NatsKvRepository::<ProgramsData>::new(nats_client.clone())
         .await
         .unwrap();
 
@@ -171,9 +195,16 @@ async fn process_epg_retriever(mirakc_url: &str, nats_url: &str) {
                             programs.len()
                         );
 
+                        let key = service_id.to_string();
+                        let programs_data = ProgramsData(programs);
+                        if let Err(e) = programs_kvs_repo.put(key.clone(), &programs_data).await {
+                            error!("KVSへのプログラムデータ保存に失敗: {}", e);
+                            continue;
+                        }
+
                         let programs_updated = programs::Updated {
                             service_id,
-                            programs,
+                            mirakc_url: mirakc_url.to_string(),
                         };
 
                         match programs_event_store.publish_event(&programs_updated).await {
@@ -204,12 +235,16 @@ async fn process_epg_retriever(mirakc_url: &str, nats_url: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+
+    use crate::ProgramsData;
+    use bytes::Bytes;
     use domain::error::DomainError;
     use domain::model::event::recording::{epg, programs};
     use domain::model::program::{Channel, Genre, Program, ProgramIdentifiers, ProgramTiming};
     use domain::ports::ProgramsRetriever;
-    use std::sync::{Arc, Mutex};
+    use domain::repository::{KvRepository, Versioned};
 
     struct MockProgramsRetriever {
         service_id: i64,
@@ -269,6 +304,73 @@ mod tests {
         }
     }
 
+    struct MockKvRepository<V>
+    where
+        V: Into<Bytes> + From<Bytes> + Clone + Send + Sync,
+    {
+        data: Arc<Mutex<HashMap<String, (u64, V)>>>,
+    }
+
+    impl<V> MockKvRepository<V>
+    where
+        V: Into<Bytes> + From<Bytes> + Clone + Send + Sync,
+    {
+        fn new() -> Self {
+            Self {
+                data: Arc::new(Mutex::new(HashMap::new())),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl<V> KvRepository<String, V> for MockKvRepository<V>
+    where
+        V: Into<Bytes> + From<Bytes> + Clone + Send + Sync,
+    {
+        async fn put(&self, key: String, value: &V) -> Result<(), DomainError> {
+            let mut data = self.data.lock().unwrap();
+            let revision = data.get::<str>(key.as_ref()).map_or(1, |(rev, _)| rev + 1);
+            data.insert(key, (revision, value.clone()));
+            Ok(())
+        }
+
+        async fn get(&self, key: String) -> Result<Option<Versioned<V>>, DomainError> {
+            let data = self.data.lock().unwrap();
+            if let Some((revision, value)) = data.get::<str>(key.as_ref()) {
+                Ok(Some(Versioned {
+                    revision: *revision,
+                    value: value.clone(),
+                }))
+            } else {
+                Ok(None)
+            }
+        }
+
+        async fn update(&self, key: String, value: &V, revision: u64) -> Result<(), DomainError> {
+            let mut data = self.data.lock().unwrap();
+            if let Some((current_revision, _)) = data.get::<str>(key.as_ref()) {
+                if *current_revision != revision {
+                    return Err(DomainError::ProgramsStoreError(
+                        "リビジョンが一致しません".to_string(),
+                    ));
+                }
+            } else {
+                return Err(DomainError::ProgramsStoreError(
+                    "存在しないキーを更新しようとしました".to_string(),
+                ));
+            }
+
+            data.insert(key, (revision + 1, value.clone()));
+            Ok(())
+        }
+
+        async fn delete(&self, key: String) -> Result<(), DomainError> {
+            let mut data = self.data.lock().unwrap();
+            data.remove::<str>(key.as_ref());
+            Ok(())
+        }
+    }
+
     #[tokio::test]
     async fn test_epg_retriever_logic() {
         let service_id = 1;
@@ -307,15 +409,17 @@ mod tests {
             .await
             .unwrap();
 
+        let mirakc_url = "http://example.com";
         let programs_updated = programs::Updated {
             service_id: epg_updated.service_id,
-            programs,
+            mirakc_url: mirakc_url.to_string(),
         };
 
         assert_eq!(programs_updated.service_id, service_id);
-        assert_eq!(programs_updated.programs.len(), 1);
+        assert_eq!(programs_updated.mirakc_url, mirakc_url);
 
-        let program = &programs_updated.programs[0];
+        assert_eq!(programs.len(), 1);
+        let program = &programs[0];
         assert_eq!(program.id, 123456789);
         assert_eq!(program.service_id, service_id_i32);
         assert_eq!(program.name, Some("テスト番組".to_string()));
@@ -325,6 +429,7 @@ mod tests {
     async fn test_process_epg_retriever_with_mocks() {
         let service_id = 1;
         let service_id_i32 = service_id as i32;
+        let mirakc_url = "http://example.com";
 
         let test_program = Program::new(
             ProgramIdentifiers {
@@ -357,15 +462,23 @@ mod tests {
         let mut mock_reader = MockEventReader::new(vec![epg_updated.clone()]);
 
         let mock_event_store = MockEventStore::<programs::Updated>::new();
+        let mock_kvs_repo = MockKvRepository::<ProgramsData>::new();
 
         // process_epg_retrieverの主要なロジックを再現
         let event = mock_reader.next().await.unwrap();
 
         let programs = mock_retriever.get_programs(event.service_id).await.unwrap();
 
+        let key = event.service_id.to_string();
+        let programs_data = ProgramsData(programs);
+        mock_kvs_repo
+            .put(key.clone(), &programs_data)
+            .await
+            .unwrap();
+
         let programs_updated = programs::Updated {
             service_id: event.service_id,
-            programs,
+            mirakc_url: mirakc_url.to_string(),
         };
 
         mock_event_store
@@ -378,11 +491,13 @@ mod tests {
 
         let published_event = &published_events[0];
         assert_eq!(published_event.service_id, service_id);
-        assert_eq!(published_event.programs.len(), 1);
+        assert_eq!(published_event.mirakc_url, mirakc_url);
 
-        let program = &published_event.programs[0];
-        assert_eq!(program.id, 123456789);
-        assert_eq!(program.service_id, service_id_i32);
-        assert_eq!(program.name, Some("テスト番組".to_string()));
+        let stored_programs_data = mock_kvs_repo.get(key).await.unwrap().unwrap().value;
+        let stored_programs = stored_programs_data.0;
+        assert_eq!(stored_programs.len(), 1);
+        assert_eq!(stored_programs[0].id, 123456789);
+        assert_eq!(stored_programs[0].service_id, service_id_i32);
+        assert_eq!(stored_programs[0].name, Some("テスト番組".to_string()));
     }
 }
