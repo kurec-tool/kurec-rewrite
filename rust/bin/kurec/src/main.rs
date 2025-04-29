@@ -9,12 +9,25 @@ use futures::StreamExt as _;
 use mirakc::get_mirakc_event_stream;
 use nats::{
     nats::connect_nats,
-    repositories::ProgramsDataRepository,
+    repositories::{ProgramsDataRepository, WebpImageDataRepository},
     stream::{EventReader, EventStore},
     stream_manager::{StreamConfig, create_or_update_streams},
 };
 use tracing::{debug, error};
 use tracing_subscriber::{EnvFilter, fmt};
+
+mod ogp_image_processor_worker;
+
+use ogp_image_processor_worker::process_ogp_image_processor;
+
+async fn process_ogp_image_processor(nats_url: &str) {
+    debug!("OGP画像処理ワーカーを開始します...");
+    let nats_client = connect_nats(nats_url).await.unwrap();
+    
+    setup_kurec_streams(&nats_client).await.unwrap();
+    
+    ogp_image_processor_worker::process_ogp_image_processor(nats_client).await;
+}
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -59,6 +72,11 @@ enum Commands {
         #[arg(short, long, default_value = "nats:4222")]
         nats_url: String,
     },
+    OgpImageProcessor {
+        /// NATSサーバーのURL
+        #[arg(short, long, default_value = "nats:4222")]
+        nats_url: String,
+    },
 }
 
 #[tokio::main]
@@ -89,6 +107,9 @@ async fn main() {
         }
         Commands::OgpImageExtractor { nats_url } => {
             process_ogp_image_extractor(nats_url).await;
+        }
+        Commands::OgpImageProcessor { nats_url } => {
+            process_ogp_image_processor(nats_url).await;
         }
     }
 }
