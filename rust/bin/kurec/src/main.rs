@@ -159,27 +159,33 @@ async fn process_epg_retriever(mirakc_url: &str, nats_url: &str) {
 
     loop {
         match reader.next().await {
-            Ok(event) => {
-                debug!("EPG更新イベントを受信: service_id={}", event.service_id);
+            Ok((event, mut ack_handle)) => {
+                let service_id = event.service_id;
+                debug!("EPG更新イベントを受信: service_id={}", service_id);
 
-                match programs_retriever.get_programs(event.service_id).await {
+                match programs_retriever.get_programs(service_id).await {
                     Ok(programs) => {
                         debug!(
                             "サービスID {} のプログラム {} 件を取得",
-                            event.service_id,
+                            service_id,
                             programs.len()
                         );
 
                         let programs_updated = programs::Updated {
-                            service_id: event.service_id,
+                            service_id,
                             programs,
                         };
 
                         match programs_event_store.publish_event(&programs_updated).await {
-                            Ok(_) => debug!(
-                                "プログラム更新イベントを発行しました: service_id={}",
-                                event.service_id
-                            ),
+                            Ok(_) => {
+                                debug!(
+                                    "プログラム更新イベントを発行しました: service_id={}",
+                                    service_id
+                                );
+                                if let Err(e) = ack_handle.ack().await {
+                                    error!("メッセージの確認（ack）に失敗: {:?}", e);
+                                }
+                            }
                             Err(e) => error!("プログラム更新イベントの発行に失敗: {:?}", e),
                         }
                     }
