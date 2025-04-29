@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# プロジェクトルートに移動
+cd "$(git rev-parse --show-toplevel)"
+
+echo "🧪 cargo test を実行中..."
+cargo test || { echo "❌ テストが失敗しました。"; exit 1; }
+
+echo "✅ pre-pushフックが正常に完了しました。"
