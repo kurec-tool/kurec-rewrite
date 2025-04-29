@@ -45,12 +45,13 @@ impl NatsKvRepository {
         K: AsRef<str> + Send + Sync,
     {
         match self.kv_store.entry(key.as_ref()).await {
-            Ok(Some(entry)) if entry.value.is_empty() => {
+            Ok(Some(entry)) if entry.operation != jetstream::kv::Operation::Put => {
                 debug!(
                     bucket = %self.bucket_name,
                     key = %key.as_ref(),
                     revision = %entry.revision,
-                    "空の値を持つエントリを削除済みとして扱います"
+                    operation = ?entry.operation,
+                    "Operation::Putではないエントリを削除済みとして扱います"
                 );
                 Ok(None)
             }
