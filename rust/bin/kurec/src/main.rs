@@ -322,7 +322,7 @@ async fn process_ogp_url_extractor(nats_url: &str) {
 
 async fn process_ogp_image_extractor(nats_url: &str) {
     use domain::model::event::ogp;
-    use domain::model::html_parser::OgpImageParser;
+    use domain::service::OgpImageParser;
     use domain::ports::HtmlFetcher;
     use http::ReqwestHtmlFetcher;
 
@@ -756,7 +756,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ogp_image_extractor() {
-        use domain::model::html_parser::OgpImageParser;
+        use domain::service::OgpImageParser;
 
         let html_content = r#"
         <!DOCTYPE html>
